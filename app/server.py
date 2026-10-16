@@ -98,9 +98,11 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             self._send(err)
             return int(err.status)
 
+        
         request = {
             "method": self.command,
             "path": path,
+            "params": params,
             "query": query,
             "headers": dict(self.headers),
             "cookies": parse_cookies(
@@ -109,11 +111,18 @@ class HTTPRequestHandler(BaseHTTPRequestHandler):
             "body": body,
         }
 
-        result = route.handler(request, params)
+        result = route.handler(request)
         self._send(result)
         return int(result.status)
 
     def _send(self, response: Response) -> None:
+        if response.status == HTTPStatus.NO_CONTENT:
+            self.send_response(response.status)
+            for name, value in response.headers:
+                self.send_header(name, value)
+            self.end_headers()
+            return
+         
         payload = json.dumps(
             response.body
             if response.body is not None

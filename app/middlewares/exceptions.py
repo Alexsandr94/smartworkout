@@ -7,9 +7,9 @@ from app.httpresponse import error_response
 log = logging.getLogger(__name__)
 
 
-def exception_middleware(request, params, next_handler):
+def exception_middleware(request, next_handler):
     try:
-        return next_handler(request, params)
+        return next_handler(request)
 
     except AppError as exc:
         return error_response(

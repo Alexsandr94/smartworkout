@@ -1,3 +1,4 @@
+
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -6,18 +7,20 @@ from typing import Any, Callable
 _PARAM_RE = re.compile(r"\{(\w+)\}")
 
 Request = dict[str, Any]
-Params = dict[str, str]
-Handler = Callable[[Request, Params], Any]
-Middleware = Callable[[Request, Params, Handler], Any]
+Handler = Callable[[Request], Any]
+Middleware = Callable[[Request, Handler], Any]
+
 
 def _compile_pattern(pattern: str) -> re.Pattern:
     parts = _PARAM_RE.split(pattern)
     out = []
+
     for i, part in enumerate(parts):
         if i % 2 == 1:
             out.append(f"(?P<{part}>[^/]+)")
         else:
             out.append(re.escape(part))
+
     return re.compile("^" + "".join(out) + "$")
 
 
@@ -25,13 +28,12 @@ def _compile_pattern(pattern: str) -> re.Pattern:
 class Route:
     method: str
     pattern: str
-    handler: Callable
+    handler: Handler
     regex: re.Pattern = field(init=False)
 
     def __post_init__(self):
         self.method = self.method.upper()
         self.regex = _compile_pattern(self.pattern)
-
 
 @dataclass
 class Router:
@@ -44,8 +46,8 @@ class Router:
 
     @staticmethod
     def _wrap(middleware: Middleware, next_handler: Handler) -> Handler:
-        def wrapped(request: Request, params: Params):
-            return middleware(request, params, next_handler)
+        def wrapped(request: Request):
+            return middleware(request, next_handler)
         return wrapped
 
     def _register(
@@ -56,8 +58,8 @@ class Router:
     ):
         def decorator(handler: Handler) -> Handler:
             all_mw = self.global_middlewares + list(middlewares or [])
-
             wrapped_handler: Handler = handler
+
             for mw in reversed(all_mw):
                 wrapped_handler = self._wrap(mw, wrapped_handler)
 
@@ -67,10 +69,12 @@ class Router:
 
     def resolve(self, method: str, path: str) -> tuple[Route | None, dict, bool]:
         allowed = False
+
         for route in self.routes:
             match = route.regex.match(path)
             if match is None:
                 continue
+
             allowed = True
             if route.method == method:
                 return route, match.groupdict(), True

@@ -5,13 +5,11 @@ from http import HTTPStatus
 log = logging.getLogger(__name__)
 
 
-def logging_middleware(request, params, next_handler):
+def logging_middleware(request, next_handler):
     start = time.perf_counter()
 
-    response = next_handler(request, params)
-
+    response = next_handler(request)
     duration_ms = int((time.perf_counter() - start) * 1000)
-
     data = {
         "method": request["method"],
         "path": request["path"],
