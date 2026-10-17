@@ -8,7 +8,7 @@ from app.errors.user import AccessDeniedError
 from app.security.token import verify
 
 
-def require_auth(request, params, next_handler):
+def require_auth(request, next_handler):
     header = request["headers"].get("Authorization", "")
 
     if not header.startswith("Bearer "):
@@ -27,10 +27,10 @@ def require_auth(request, params, next_handler):
         "role": payload.get("role"),
     }
 
-    return next_handler(request, params)
+    return next_handler(request)
 
 
-def require_admin(request, params, next_handler):
+def require_admin(request, next_handler):
     user = request.get("user")
 
     if not user:
@@ -39,4 +39,4 @@ def require_admin(request, params, next_handler):
     if user.get("role") != "ADMIN":
         raise AccessDeniedError()
 
-    return next_handler(request, params)
+    return next_handler(request)

@@ -50,7 +50,7 @@ def _existing_id(params: dict):
 
 
 @router.get('/exercises', [require_auth])
-def list_exercises(request, params):
+def list_exercises(request):
     query = request.get('query') or {}
     try:
         filters = ExerciseListDTO(
@@ -64,13 +64,13 @@ def list_exercises(request, params):
 
 
 @router.get('/exercises/{exercise_id}', [require_auth])
-def get_exercise(request, params):
-    document = exercise_service.get(_existing_id(params))
+def get_exercise(request):
+    document = exercise_service.get(_existing_id(request.get('params') or {}))
     return json_response(serialize_exercise(document))
 
 
 @router.post('/exercises', [require_auth, require_admin])
-def create_exercise(request, params):
+def create_exercise(request):
     try:
         values = _body_document(request, ExerciseCreateDTO)
     except DTOValidationError as exc:
@@ -80,7 +80,8 @@ def create_exercise(request, params):
 
 
 @router.put('/exercises/{exercise_id}', [require_auth, require_admin])
-def update_exercise(request, params):
+def update_exercise(request):
+    params = request.get('params') or {}
     try:
         exercise_id = validate_exercise_id(params.get('exercise_id'))
         changes = _body_document(request, ExerciseUpdateDTO)
@@ -91,6 +92,6 @@ def update_exercise(request, params):
 
 
 @router.delete('/exercises/{exercise_id}', [require_auth, require_admin])
-def delete_exercise(request, params):
-    exercise_service.delete(_existing_id(params))
+def delete_exercise(request):
+    exercise_service.delete(_existing_id(request.get('params') or {}))
     return Response(HTTPStatus.NO_CONTENT)

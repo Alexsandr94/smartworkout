@@ -1,36 +1,38 @@
-from http.cookies import SimpleCookie
+from http.cookies import CookieError, SimpleCookie
+
+from app.core.config import settings
+
+REFRESH_COOKIE_NAME = "refresh_token"
+REFRESH_COOKIE_PATH = "/auth"
 
 
 def parse_cookies(header: str | None) -> dict[str, str]:
     if not header:
         return {}
+
     cookie = SimpleCookie()
+
     try:
         cookie.load(header)
-    except Exception:
+    except CookieError:
         return {}
-    return {k: m.value for k, m in cookie.items()}
+
+    return {name: morsel.value for name, morsel in cookie.items()}
 
 
-def build_set_cookie(
-    name: str,
-    value: str,
-    *,
-    max_age: int,
-    path: str = "/",
-    http_only: bool = True,
-    secure: bool = True,
-    same_site: str = "Strict",
-) -> str:
-    parts = [f"{name}={value}", f"Max-Age={max_age}", f"Path={path}"]
-    if http_only:
-        parts.append("HttpOnly")
-    if secure:
-        parts.append("Secure")
-    if same_site:
-        parts.append(f"SameSite={same_site}")
-    return "; ".join(parts)
+def build_refresh_cookie(token: str, max_age: int) -> str:
+    cookie = SimpleCookie()
+    cookie[REFRESH_COOKIE_NAME] = token
+
+    morsel = cookie[REFRESH_COOKIE_NAME]
+    morsel["max-age"] = max_age
+    morsel["path"] = REFRESH_COOKIE_PATH
+    morsel["httponly"] = True
+    morsel["secure"] = settings.is_production()
+    morsel["samesite"] = "Strict"
+
+    return cookie.output(header="").strip()
 
 
-def clear_cookie(name: str, path: str = "/") -> str:
-    return f"{name}=; Max-Age=0; Path={path}; HttpOnly; Secure; SameSite=Strict"
+def clear_refresh_cookie() -> str:
+    return build_refresh_cookie("", 0)
