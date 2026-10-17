@@ -59,7 +59,7 @@ def list_exercises(request):
     )
     return json_response({
         'data': [serialize_exercise(exercise) for exercise in page.data],
-        'next': page.next, 'limit': page.limit, 'has_more': page.has_more,
+        'next': page.next, 'has_more': page.has_more,
     })
 
 

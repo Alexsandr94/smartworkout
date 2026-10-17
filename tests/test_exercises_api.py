@@ -39,7 +39,7 @@ class ExerciseAPITests(unittest.TestCase):
         doc = self.seed()
         status, body, _ = self.api.request('GET', '/exercises', role='USER')
         self.assertEqual(status, 200)
-        self.assertEqual(set(body), {'data', 'next', 'limit', 'has_more'})
+        self.assertEqual(set(body), {'data', 'next', 'has_more'})
         self.assertEqual(body.get('data')[0].get('name'), 'Push-up')
         status, body, _ = self.api.request('GET', '/exercises/' + str(doc.id), role='USER')
         self.assertEqual(status, 200)
@@ -179,7 +179,7 @@ class ExerciseAPITests(unittest.TestCase):
             status, body, _ = self.api.request('GET', '/exercises?' + urlencode(query), role='USER')
             self.assertEqual(status, 200)
             received.extend(item.get('id') for item in body.get('data'))
-            self.assertEqual(body.get('limit'), 2)
+            self.assertNotIn('limit', body)
             self.assertEqual(body.get('has_more'), page < 2)
             cursor = body.get('next')
         self.assertEqual(received, expected)
@@ -188,7 +188,7 @@ class ExerciseAPITests(unittest.TestCase):
     def test_default_limit_and_empty_page(self):
         status, body, _ = self.api.request('GET', '/exercises')
         self.assertEqual(status, 200)
-        self.assertEqual(body, {'data': [], 'next': None, 'limit': 20, 'has_more': False})
+        self.assertEqual(body, {'data': [], 'next': None, 'has_more': False})
         for number in range(21):
             self.seed(name=f'Exercise {number}')
         body = self.api.request('GET', '/exercises')[1]

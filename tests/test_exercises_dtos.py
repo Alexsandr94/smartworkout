@@ -110,6 +110,13 @@ class ExerciseDTOTests(unittest.TestCase):
         with self.subTest(invalid='trailing host text'):
             self.assert_invalid(self.dto.ExerciseUpdateDTO, 'video_url', {'video_url': 'https://[::1]junk/video'})
 
+    def test_ipvfuture_host_rejects_percent_encoding(self):
+        for value in ('custom://[v1.host%20name]/video', 'custom://[v1.host%2Fname]/video'):
+            with self.subTest(value=value):
+                self.assert_invalid(self.dto.ExerciseUpdateDTO, 'video_url', {'video_url': value})
+        value = 'custom://[v1.host:name]/video'
+        self.assertEqual(self.dto.ExerciseUpdateDTO.from_dict({'video_url': value}).video_url, value)
+
     def test_query_validation(self):
         self.assertEqual(self.dto.ExerciseListDTO().pagination.limit, 20)
         for value in ('1', '100'):

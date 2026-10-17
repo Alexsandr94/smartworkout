@@ -1,5 +1,5 @@
 from dataclasses import dataclass, fields
-from string import hexdigits
+from string import ascii_letters, digits, hexdigits
 from urllib.parse import urlsplit
 
 from app.common.pagination import PaginationParams, parse_limit
@@ -26,6 +26,10 @@ def _valid_uri(value: str) -> bool:
     if not parts.scheme or parts.netloc.count('@') > 1:
         return False
     authority = parts.netloc.rsplit('@', 1)[-1]
+    if '[' in parts.netloc:
+        literal = parts.netloc.partition('[')[2].partition(']')[0]
+        if literal.lower().startswith('v') and not set(literal) <= set(ascii_letters + digits + "-._~!$&'()*+,;=:"):
+            return False
     if authority.startswith('['):
         suffix = authority[authority.index(']') + 1:]
     else:
