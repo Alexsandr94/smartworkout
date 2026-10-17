@@ -1,4 +1,5 @@
 from app.errors.base import AppError
+from app.errors.exercises import ExerciseInUseError, ExerciseNotFoundError
 
 from app.errors.auth import (
     AuthorizationRequiredError,
@@ -15,6 +16,8 @@ from app.errors.user import (
 
 __all__ = [
     "AppError",
+    "ExerciseInUseError",
+    "ExerciseNotFoundError",
     "AuthorizationRequiredError",
     "InvalidCredentialsError",
     "TokenExpiredError",

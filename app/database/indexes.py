@@ -3,11 +3,18 @@ import logging
 from pymongo import ASCENDING, IndexModel
 
 from .client import get_db
-from .collections import USERS
+from .collections import EXERCISES, PROGRAMS, USERS
 
 logger = logging.getLogger(__name__)
 
 INDEXES = {
+    EXERCISES: [
+        IndexModel([("muscle_groups", ASCENDING), ("_id", ASCENDING)], name="idx_exercise_muscle_groups"),
+        IndexModel([("equipment", ASCENDING), ("_id", ASCENDING)], name="idx_exercise_equipment"),
+    ],
+    PROGRAMS: [
+        IndexModel([("exercises.exercise_id", ASCENDING)], name="idx_program_exercise_id"),
+    ],
     USERS: [
         IndexModel(
             [("email", ASCENDING)],
