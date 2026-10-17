@@ -4,6 +4,7 @@ import unittest
 from bson import ObjectId
 
 from app.dtos.base import DTOValidationError
+from app.dtos.utils import validate_object_id
 
 
 class ExerciseDTOTests(unittest.TestCase):
@@ -21,7 +22,7 @@ class ExerciseDTOTests(unittest.TestCase):
 
     def assert_invalid(self, dto_type, field, values):
         with self.assertRaises(DTOValidationError) as caught:
-            dto_type(**values)
+            dto_type.from_dict(values)
         self.assertIn(field, [error.get('field') for error in caught.exception.errors])
         for error in caught.exception.errors:
             self.assertIsInstance(error.get('message'), str)
@@ -98,16 +99,27 @@ class ExerciseDTOTests(unittest.TestCase):
                     self.assert_invalid(self.dto.ExerciseUpdateDTO, field, {field: value})
                     self.assert_invalid(self.dto.ExerciseCreateDTO, field, {**self.valid_data(), field: value})
 
+    def test_uri_authority_keeps_generic_uri_ports_and_rejects_trailing_host_text(self):
+        value = 'custom://example.org:70000/video'
+        with self.subTest(valid=value):
+            try:
+                result = self.dto.ExerciseUpdateDTO.from_dict({'video_url': value})
+            except DTOValidationError:
+                self.fail('A generic URI with a numeric port must be accepted')
+            self.assertEqual(result.video_url, value)
+        with self.subTest(invalid='trailing host text'):
+            self.assert_invalid(self.dto.ExerciseUpdateDTO, 'video_url', {'video_url': 'https://[::1]junk/video'})
+
     def test_query_validation(self):
-        self.assertEqual(self.dto.ExerciseListDTO().limit, 20)
+        self.assertEqual(self.dto.ExerciseListDTO().pagination.limit, 20)
         for value in ('1', '100'):
-            self.assertEqual(self.dto.ExerciseListDTO(limit=value).limit, int(value))
+            self.assertEqual(self.dto.ExerciseListDTO(limit=value).pagination.limit, int(value))
         for value in ('0', '101', '1.5', 'no', True, '-1', '1_0'):
             with self.subTest(value=value):
                 self.assert_invalid(self.dto.ExerciseListDTO, 'limit', {'limit': value})
         query = self.dto.ExerciseListDTO(muscle_group='CHEST,ARMS', equipment='DUMBBELL,BARBELL', search='жим')
-        self.assertEqual(query.muscle_group, ['CHEST', 'ARMS'])
-        self.assertEqual(query.equipment, ['DUMBBELL', 'BARBELL'])
+        self.assertEqual(query.muscle_group, 'CHEST,ARMS')
+        self.assertEqual(query.equipment, 'DUMBBELL,BARBELL')
         self.assertEqual(query.search, 'жим')
         for field in ('muscle_group', 'equipment'):
             for value in ('UNKNOWN', 'CHEST,' if field == 'muscle_group' else 'DUMBBELL,', 1):
@@ -116,15 +128,15 @@ class ExerciseDTOTests(unittest.TestCase):
 
     def test_cursor_and_path_id(self):
         value = '507F1F77BCF86CD799439011'
-        self.assertEqual(self.dto.ExerciseListDTO(cursor=value).cursor, ObjectId(value))
-        self.assertEqual(self.dto.validate_exercise_id(value), ObjectId(value))
+        self.assertEqual(self.dto.ExerciseListDTO(cursor=value).pagination.cursor, ObjectId(value))
+        self.assertEqual(validate_object_id(value), ObjectId(value))
         for invalid in ('', 'bad', 'x' * 24, '0' * 12):
             with self.subTest(value=invalid):
                 self.assert_invalid(self.dto.ExerciseListDTO, 'cursor', {'cursor': invalid})
                 with self.assertRaises(DTOValidationError):
-                    self.dto.validate_exercise_id(invalid)
+                    validate_object_id(invalid)
         with self.assertRaises(DTOValidationError):
-            self.dto.validate_exercise_id(None)
+            validate_object_id(None)
 
 
 if __name__ == '__main__':

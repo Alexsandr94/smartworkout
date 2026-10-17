@@ -2,7 +2,7 @@ import logging
 
 from .client import get_db
 from .collections import EXERCISES, USERS
-from app.dtos.exercises import DESCRIPTION_MAX_LENGTH, EQUIPMENT, MUSCLE_GROUPS, NAME_MAX_LENGTH
+from app.models.exercise import DESCRIPTION_MAX_LENGTH, EQUIPMENT, MUSCLE_GROUPS, NAME_MAX_LENGTH
 
 logger = logging.getLogger(__name__)
 

@@ -1,40 +1,32 @@
-from dataclasses import fields
 from datetime import UTC
 from http import HTTPStatus
 
 from app.dependencies import exercise_service
 from app.dtos.base import DTOValidationError
-from app.dtos.exercises import UNSET, ExerciseCreateDTO, ExerciseListDTO, ExerciseUpdateDTO, validate_exercise_id
+from app.dtos.exercises import ExerciseCreateDTO, ExerciseListDTO, ExerciseUpdateDTO
+from app.dtos.utils import validate_object_id
 from app.errors.exercises import ExerciseNotFoundError
 from app.errors.http import bad_request
 from app.httpresponse import Response, error_response, json_response
 from app.middlewares.auth import require_admin, require_auth
+from app.models.exercise import Exercise
 from app.routing import router
 
 
-def serialize_exercise(document: dict) -> dict:
-    created_at = document.get('created_at')
+def serialize_exercise(exercise: Exercise) -> dict:
+    created_at = exercise.created_at
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=UTC)
     result = {
-        'id': str(document.get('_id')),
-        'name': document.get('name'),
-        'muscle_groups': document.get('muscle_groups'),
-        'equipment': document.get('equipment'),
+        'id': str(exercise.id), 'name': exercise.name,
+        'muscle_groups': exercise.muscle_groups, 'equipment': exercise.equipment,
         'created_at': created_at.astimezone(UTC).isoformat(timespec='milliseconds'),
     }
     for name in ('description', 'video_url', 'image_url'):
-        if name in document:
-            result[name] = document.get(name)
+        value = getattr(exercise, name)
+        if value is not None:
+            result[name] = value
     return result
-
-
-def _body_document(request: dict, dto_type) -> dict:
-    body = request.get('body')
-    if not isinstance(body, dict):
-        raise DTOValidationError([{'field': 'body', 'message': 'body must be a JSON object'}])
-    values = {item.name: body.get(item.name, UNSET) for item in fields(dto_type)}
-    return dto_type(**values).to_document()
 
 
 def _validation_response(exc: DTOValidationError) -> Response:
@@ -42,56 +34,61 @@ def _validation_response(exc: DTOValidationError) -> Response:
     return error_response(payload, status)
 
 
-def _existing_id(params: dict):
+def _exercise_id(request: dict):
+    params = request.get('params') or {}
+    return validate_object_id(params.get('exercise_id'), 'exercise_id')
+
+
+def _existing_id(request: dict):
     try:
-        return validate_exercise_id(params.get('exercise_id'))
+        return _exercise_id(request)
     except DTOValidationError:
         raise ExerciseNotFoundError() from None
 
 
 @router.get('/exercises', [require_auth])
 def list_exercises(request):
-    query = request.get('query') or {}
     try:
-        filters = ExerciseListDTO(
-            muscle_group=query.get('muscle_group'), equipment=query.get('equipment'),
-            search=query.get('search'), cursor=query.get('cursor'), limit=query.get('limit', 20),
-        )
+        filters = ExerciseListDTO.from_dict(request.get('query') or {})
     except DTOValidationError as exc:
         return _validation_response(exc)
-    result = exercise_service.list(filters)
-    return json_response({**result, 'data': [serialize_exercise(doc) for doc in result.get('data')]})
+    page = exercise_service.list(
+        muscle_groups=filters.muscle_group.split(',') if filters.muscle_group is not None else None,
+        equipment=filters.equipment.split(',') if filters.equipment is not None else None,
+        search=filters.search, pagination=filters.pagination,
+    )
+    return json_response({
+        'data': [serialize_exercise(exercise) for exercise in page.data],
+        'next': page.next, 'limit': page.limit, 'has_more': page.has_more,
+    })
 
 
 @router.get('/exercises/{exercise_id}', [require_auth])
 def get_exercise(request):
-    document = exercise_service.get(_existing_id(request.get('params') or {}))
-    return json_response(serialize_exercise(document))
+    return json_response(serialize_exercise(exercise_service.get(_existing_id(request))))
 
 
 @router.post('/exercises', [require_auth, require_admin])
 def create_exercise(request):
     try:
-        values = _body_document(request, ExerciseCreateDTO)
+        values = ExerciseCreateDTO.from_dict(request.get('body')).to_document()
     except DTOValidationError as exc:
         return _validation_response(exc)
-    document = exercise_service.create(values)
-    return json_response(serialize_exercise(document), HTTPStatus.CREATED)
+    exercise = exercise_service.create(values)
+    return json_response(serialize_exercise(exercise), HTTPStatus.CREATED)
 
 
 @router.put('/exercises/{exercise_id}', [require_auth, require_admin])
 def update_exercise(request):
-    params = request.get('params') or {}
     try:
-        exercise_id = validate_exercise_id(params.get('exercise_id'))
-        changes = _body_document(request, ExerciseUpdateDTO)
+        exercise_id = _exercise_id(request)
+        changes = ExerciseUpdateDTO.from_dict(request.get('body')).to_document()
     except DTOValidationError as exc:
         return _validation_response(exc)
-    document = exercise_service.update(exercise_id, changes)
-    return json_response(serialize_exercise(document))
+    return json_response(serialize_exercise(exercise_service.update(exercise_id, changes)))
 
 
 @router.delete('/exercises/{exercise_id}', [require_auth, require_admin])
 def delete_exercise(request):
-    exercise_service.delete(_existing_id(request.get('params') or {}))
+    exercise_service.delete(_existing_id(request))
     return Response(HTTPStatus.NO_CONTENT)

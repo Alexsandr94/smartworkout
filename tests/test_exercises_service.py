@@ -4,7 +4,8 @@ from datetime import UTC, datetime
 
 from bson import ObjectId
 
-from app.dtos.exercises import ExerciseListDTO
+from app.common.pagination import PaginationParams
+from app.models.exercise import Exercise
 from app.errors.exercises import ExerciseInUseError, ExerciseNotFoundError
 
 
@@ -16,8 +17,8 @@ class RepositoryDouble:
         self.disappear_before_delete = False
 
     def create(self, values):
-        doc = {'_id': ObjectId(), 'created_at': datetime.now(UTC), **values}
-        self.documents[doc.get('_id')] = doc
+        doc = Exercise.from_document({'_id': ObjectId(), 'created_at': datetime.now(UTC), **values})
+        self.documents[doc.id] = doc
         return doc
 
     def find_by_id(self, exercise_id):
@@ -26,10 +27,11 @@ class RepositoryDouble:
     def update(self, exercise_id, changes):
         doc = self.documents.get(exercise_id)
         if doc is not None:
-            doc.update(changes)
+            for name, value in changes.items():
+                setattr(doc, name, value)
         return doc
 
-    def find_page(self, filters):
+    def find_page(self, **filters):
         return self.page
 
     def is_used_in_programs(self, exercise_id):
@@ -64,47 +66,47 @@ class ExerciseServiceTests(unittest.TestCase):
 
     def test_used_exercise_is_not_deleted(self):
         doc = self.create()
-        self.repo.used.add(doc.get('_id'))
+        self.repo.used.add(doc.id)
         with self.assertRaises(ExerciseInUseError) as caught:
-            self.service.delete(doc.get('_id'))
+            self.service.delete(doc.id)
         self.assertEqual(caught.exception.status, 409)
         self.assertEqual(caught.exception.message, 'Exercise is used in one or more programs')
-        self.assertEqual(self.service.get(doc.get('_id')).get('name'), 'Push-up')
+        self.assertEqual(self.service.get(doc.id).name, 'Push-up')
 
     def test_free_exercise_is_deleted(self):
         doc = self.create()
-        self.service.delete(doc.get('_id'))
+        self.service.delete(doc.id)
         with self.assertRaises(ExerciseNotFoundError):
-            self.service.get(doc.get('_id'))
+            self.service.get(doc.id)
 
     def test_disappearance_during_delete_returns_not_found(self):
         doc = self.create()
         self.repo.disappear_before_delete = True
         with self.assertRaises(ExerciseNotFoundError):
-            self.service.delete(doc.get('_id'))
+            self.service.delete(doc.id)
 
     def test_update_returns_changed_document(self):
         doc = self.create()
-        result = self.service.update(doc.get('_id'), {'name': 'Bench press'})
-        self.assertEqual(result.get('name'), 'Bench press')
-        self.assertEqual(result.get('equipment'), ['BODYWEIGHT'])
+        result = self.service.update(doc.id, {'name': 'Bench press'})
+        self.assertEqual(result.name, 'Bench press')
+        self.assertEqual(result.equipment, ['BODYWEIGHT'])
 
     def test_extra_page_result_is_not_returned(self):
         self.repo.page = [self.create() for _ in range(3)]
-        result = self.service.list(ExerciseListDTO(limit=2))
-        self.assertEqual(len(result.get('data')), 2)
-        self.assertTrue(result.get('has_more'))
-        self.assertEqual(result.get('limit'), 2)
-        self.assertEqual(result.get('next'), str(self.repo.page[1].get('_id')))
+        result = self.service.list(pagination=PaginationParams(limit=2))
+        self.assertEqual(len(result.data), 2)
+        self.assertTrue(result.has_more)
+        self.assertEqual(result.limit, 2)
+        self.assertEqual(result.next, str(self.repo.page[1].id))
 
     def test_last_and_empty_pages_have_no_next_cursor(self):
         for size in (0, 1, 2):
             self.repo.page = [self.create() for _ in range(size)]
             with self.subTest(size=size):
-                result = self.service.list(ExerciseListDTO(limit=2))
-                self.assertFalse(result.get('has_more'))
-                self.assertIsNone(result.get('next'))
-                self.assertEqual(len(result.get('data')), size)
+                result = self.service.list(pagination=PaginationParams(limit=2))
+                self.assertFalse(result.has_more)
+                self.assertIsNone(result.next)
+                self.assertEqual(len(result.data), size)
 
 
 if __name__ == '__main__':

@@ -41,21 +41,21 @@ class ExerciseAPITests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(set(body), {'data', 'next', 'limit', 'has_more'})
         self.assertEqual(body.get('data')[0].get('name'), 'Push-up')
-        status, body, _ = self.api.request('GET', '/exercises/' + str(doc.get('_id')), role='USER')
+        status, body, _ = self.api.request('GET', '/exercises/' + str(doc.id), role='USER')
         self.assertEqual(status, 200)
-        self.assertEqual(body.get('id'), str(doc.get('_id')))
+        self.assertEqual(body.get('id'), str(doc.id))
         self.assertNotIn('_id', body)
         self.assertNotIn('description', body)
 
     def test_user_cannot_mutate_catalog(self):
         doc = self.seed()
-        path = '/exercises/' + str(doc.get('_id'))
+        path = '/exercises/' + str(doc.id)
         for method, url, payload in (('POST', '/exercises', self.values()), ('PUT', path, {'name': 'Forbidden'}), ('DELETE', path, {})):
             with self.subTest(method=method):
                 status, body, _ = self.api.request(method, url, role='USER', payload=payload)
                 self.assertEqual(status, 403)
                 self.assertEqual(body.get('code'), 'FORBIDDEN')
-        self.assertEqual(self.repo.find_by_id(doc.get('_id')).get('name'), 'Push-up')
+        self.assertEqual(self.repo.find_by_id(doc.id).name, 'Push-up')
         self.assertEqual(self.db.exercises.count_documents({}), 1)
 
     def test_admin_crud_and_timestamp_are_consistent(self):
@@ -81,7 +81,7 @@ class ExerciseAPITests(unittest.TestCase):
 
     def test_partial_and_empty_put_preserve_fields(self):
         doc = self.seed(description='Original', video_url='urn:example:video')
-        path = '/exercises/' + str(doc.get('_id'))
+        path = '/exercises/' + str(doc.id)
         before = self.api.request('GET', path)[1]
         status, unchanged, _ = self.api.request('PUT', path, payload={})
         self.assertEqual(status, 200)
@@ -109,7 +109,7 @@ class ExerciseAPITests(unittest.TestCase):
 
     def test_invalid_uri_components_are_rejected_on_create_and_update(self):
         doc = self.seed(video_url='urn:example:video', image_url='https://example.org/image')
-        path = '/exercises/' + str(doc.get('_id'))
+        path = '/exercises/' + str(doc.id)
         before = self.api.request('GET', path)[1]
         for field in ('video_url', 'image_url'):
             for value in ('https://example.org:abc/video', 'https://example.org/video#part#other', 'https://example.org/[video]'):
@@ -121,13 +121,23 @@ class ExerciseAPITests(unittest.TestCase):
         self.assertEqual(self.api.request('GET', path)[1], before)
         self.assertEqual(self.db.exercises.count_documents({}), 1)
 
-    def test_unknown_body_keys_cannot_override_server_fields(self):
+    def test_unknown_body_keys_are_rejected_by_shared_validation(self):
         forced_id = '507f1f77bcf86cd799439011'
         status, body, _ = self.api.request('POST', '/exercises', payload=self.values(_id=forced_id, created_at='yesterday', extra='ignored'))
-        self.assertEqual(status, 201)
-        self.assertNotEqual(body.get('id'), forced_id)
-        self.assertNotIn('extra', body)
-        self.assertIsNotNone(self.repo.find_by_id(ObjectId(body.get('id'))))
+        self.assertEqual(status, 400)
+        self.assertEqual({error.get('field') for error in body.get('errors')}, {'_id', 'created_at', 'extra'})
+        self.assertEqual(self.db.exercises.count_documents({}), 0)
+
+    def test_filters_accept_any_case_with_multiple_values(self):
+        self.seed(name='Bench', muscle_groups=['CHEST'], equipment=['DUMBBELL'])
+        self.seed(name='Curl', muscle_groups=['ARMS'], equipment=['DUMBBELL'])
+        self.seed(name='Excluded', muscle_groups=['BACK'], equipment=['BODYWEIGHT'])
+        for muscles, equipment in (('chest,arms', 'dumbbell'), ('ChEsT,ArMs', 'DumBBeLl'), ('CHEST,ARMS', 'DUMBBELL')):
+            with self.subTest(muscles=muscles):
+                query = urlencode({'muscle_group': muscles, 'equipment': equipment})
+                status, body, _ = self.api.request('GET', '/exercises?' + query)
+                self.assertEqual(status, 200)
+                self.assertEqual([item.get('name') for item in body.get('data')], ['Bench', 'Curl'])
 
     def test_missing_and_malformed_ids(self):
         path = '/exercises/' + str(ObjectId())
@@ -145,20 +155,20 @@ class ExerciseAPITests(unittest.TestCase):
 
     def test_used_exercise_returns_conflict_and_remains_available(self):
         doc = self.seed()
-        for reference in (doc.get('_id'), str(doc.get('_id'))):
+        for reference in (doc.id, str(doc.id)):
             with self.subTest(reference=reference):
                 self.db.programs.delete_many({})
                 self.db.programs.insert_one({'exercises': [{'exercise_id': reference}]})
-                status, body, _ = self.api.request('DELETE', '/exercises/' + str(doc.get('_id')))
+                status, body, _ = self.api.request('DELETE', '/exercises/' + str(doc.id))
                 self.assertEqual(status, 409)
                 self.assertEqual(body, {'code': 'CONFLICT', 'message': 'Exercise is used in one or more programs'})
-                self.assertIsNotNone(self.repo.find_by_id(doc.get('_id')))
+                self.assertIsNotNone(self.repo.find_by_id(doc.id))
 
     def test_filters_and_cursor_pagination(self):
         expected = []
         for number in range(5):
             doc = self.seed(name=f'Exercise {number}', muscle_groups=['CHEST' if number % 2 == 0 else 'ARMS'], equipment=['DUMBBELL'])
-            expected.append(str(doc.get('_id')))
+            expected.append(str(doc.id))
         self.seed(name='Excluded', equipment=['BODYWEIGHT'])
         received = []
         cursor = None

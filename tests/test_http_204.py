@@ -66,7 +66,7 @@ class HTTPResponseTests(unittest.TestCase):
                     headers[name.lower()] = value.strip()
                 return status_line, headers
 
-            first_status, first_headers = request('DELETE', '/exercises/' + str(doc.get('_id')))
+            first_status, first_headers = request('DELETE', '/exercises/' + str(doc.id))
             self.assertTrue(first_status.startswith(b'HTTP/1.1 204 '), first_status)
             next_status, next_headers = request('GET', '/exercises')
             self.assertTrue(next_status.startswith(b'HTTP/1.1 200 '), next_status)
