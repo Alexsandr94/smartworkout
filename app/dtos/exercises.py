@@ -14,17 +14,29 @@ def _array_error(name: str, values: list[str], allowed: tuple[str, ...]) -> str 
         return f'{name} must contain only allowed values: {", ".join(allowed)}'
     return None
 
-
 def _valid_uri(value: str) -> bool:
-    if not value or not value.isascii() or any(char.isspace() for char in value):
+    if (
+        not isinstance(value, str)
+        or not value
+        or not value.isascii()
+        or not value.isprintable()
+        or any(char.isspace() for char in value)
+    ):
         return False
+
     try:
         parts = urlsplit(value)
+
         if not parts.scheme:
             return False
-        if parts.scheme.lower() in ('http', 'https'):
-            return bool(parts.hostname) and (parts.port is None or parts.port > 0)
-        return bool(value.partition(':')[2])
+
+        if parts.scheme.lower() in ("http", "https"):
+            return bool(parts.hostname) and (
+                parts.port is None or parts.port > 0
+            )
+
+        return bool(parts.netloc or parts.path)
+
     except ValueError:
         return False
 

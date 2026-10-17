@@ -100,6 +100,9 @@ def test_nonstring_fields_are_rejected():
     ('urn:', False),
     ('mailto:', False),
     ('https://пример.рф/video', False),
+    ("https://example.org/\x00video", False),
+    ("https://example.org/\x7fvideo", False),
+    ("https://:443/video", False),
 ])
 def test_uri_validation_matches_project_rules(field, value, valid):
     for dto_type in (exercises.ExerciseCreateDTO, exercises.ExerciseUpdateDTO):
