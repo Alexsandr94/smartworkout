@@ -1,15 +1,17 @@
-import importlib
-import unittest
 from datetime import UTC, datetime
 
 from bson import ObjectId
+import pytest
 
 from app.common.pagination import PaginationParams
-from app.models.exercise import Exercise
 from app.errors.exercises import ExerciseInUseError, ExerciseNotFoundError
+from app.models.exercise import Exercise
+from app.services.exercises.service import ExerciseService
+
 
 
 class RepositoryDouble:
+
     def __init__(self):
         self.documents = {}
         self.used = set()
@@ -39,19 +41,15 @@ class RepositoryDouble:
 
     def delete(self, exercise_id):
         previous = self.documents.pop(exercise_id, None)
-        return previous is not None and not self.disappear_before_delete
+        return previous is not None and (not self.disappear_before_delete)
 
 
-class ExerciseServiceTests(unittest.TestCase):
-    def setUp(self):
-        try:
-            module = importlib.import_module('app.services.exercises.service')
-        except ModuleNotFoundError as exc:
-            if exc.name not in ('app.services.exercises', 'app.services.exercises.service'):
-                raise
-            self.fail('Exercise service rules are not implemented')
+class TestExerciseService:
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
         self.repo = RepositoryDouble()
-        self.service = module.ExerciseService(self.repo)
+        self.service = ExerciseService(self.repo)
 
     def create(self):
         return self.service.create({'name': 'Push-up', 'muscle_groups': ['CHEST'], 'equipment': ['BODYWEIGHT']})
@@ -59,55 +57,50 @@ class ExerciseServiceTests(unittest.TestCase):
     def test_missing_exercise_raises_not_found(self):
         missing = ObjectId()
         for operation in (lambda: self.service.get(missing), lambda: self.service.update(missing, {'name': 'New'}), lambda: self.service.delete(missing)):
-            with self.subTest(operation=operation), self.assertRaises(ExerciseNotFoundError) as caught:
+            with pytest.raises(ExerciseNotFoundError) as caught:
                 operation()
-            self.assertEqual(caught.exception.status, 404)
-            self.assertEqual(caught.exception.code, 'NOT_FOUND')
+            assert caught.value.status == 404
+            assert caught.value.code == 'NOT_FOUND'
 
     def test_used_exercise_is_not_deleted(self):
         doc = self.create()
         self.repo.used.add(doc.id)
-        with self.assertRaises(ExerciseInUseError) as caught:
+        with pytest.raises(ExerciseInUseError) as caught:
             self.service.delete(doc.id)
-        self.assertEqual(caught.exception.status, 409)
-        self.assertEqual(caught.exception.message, 'Exercise is used in one or more programs')
-        self.assertEqual(self.service.get(doc.id).name, 'Push-up')
+        assert caught.value.status == 409
+        assert caught.value.message == 'Exercise is used in one or more programs'
+        assert self.service.get(doc.id).name == 'Push-up'
 
     def test_free_exercise_is_deleted(self):
         doc = self.create()
         self.service.delete(doc.id)
-        with self.assertRaises(ExerciseNotFoundError):
+        with pytest.raises(ExerciseNotFoundError):
             self.service.get(doc.id)
 
     def test_disappearance_during_delete_returns_not_found(self):
         doc = self.create()
         self.repo.disappear_before_delete = True
-        with self.assertRaises(ExerciseNotFoundError):
+        with pytest.raises(ExerciseNotFoundError):
             self.service.delete(doc.id)
 
     def test_update_returns_changed_document(self):
         doc = self.create()
         result = self.service.update(doc.id, {'name': 'Bench press'})
-        self.assertEqual(result.name, 'Bench press')
-        self.assertEqual(result.equipment, ['BODYWEIGHT'])
+        assert result.name == 'Bench press'
+        assert result.equipment == ['BODYWEIGHT']
 
     def test_extra_page_result_is_not_returned(self):
         self.repo.page = [self.create() for _ in range(3)]
         result = self.service.list(pagination=PaginationParams(limit=2))
-        self.assertEqual(len(result.data), 2)
-        self.assertTrue(result.has_more)
-        self.assertEqual(result.limit, 2)
-        self.assertEqual(result.next, str(self.repo.page[1].id))
+        assert len(result.data) == 2
+        assert result.has_more
+        assert result.limit == 2
+        assert result.next == str(self.repo.page[1].id)
 
     def test_last_and_empty_pages_have_no_next_cursor(self):
         for size in (0, 1, 2):
             self.repo.page = [self.create() for _ in range(size)]
-            with self.subTest(size=size):
-                result = self.service.list(pagination=PaginationParams(limit=2))
-                self.assertFalse(result.has_more)
-                self.assertIsNone(result.next)
-                self.assertEqual(len(result.data), size)
-
-
-if __name__ == '__main__':
-    unittest.main()
+            result = self.service.list(pagination=PaginationParams(limit=2))
+            assert not result.has_more
+            assert result.next is None
+            assert len(result.data) == size

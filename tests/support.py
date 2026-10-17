@@ -1,16 +1,17 @@
-from uuid import uuid4
-import importlib
-import json
-import sys
 from contextlib import ExitStack
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from threading import Thread
-from unittest.mock import patch
+from uuid import uuid4
+import importlib
+import json
+import sys
 
 from pymongo import MongoClient
+from pytest import MonkeyPatch
 
 from app.core.config import settings
+
 
 
 class TemporaryDatabase:
@@ -38,6 +39,7 @@ class TemporaryDatabase:
 NO_BODY = object()
 
 
+
 class TemporaryAPIServer:
     def __init__(self):
         from app.database import client, indexes, validators
@@ -50,7 +52,8 @@ class TemporaryAPIServer:
         self.context = ExitStack()
         self.context.callback(self.fixture.close)
         try:
-            self.context.enter_context(patch.object(client, '_db', self.fixture.db))
+            patcher = self.context.enter_context(MonkeyPatch.context())
+            patcher.setattr(client, '_db', self.fixture.db)
             validators.ensure_schema()
             indexes.ensure_indexes()
             was_loaded = 'app.dependencies' in sys.modules

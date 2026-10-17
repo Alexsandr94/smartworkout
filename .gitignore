@@ -9,3 +9,4 @@ venv/
 docs/superpowers/
 AGENTS.md
 CLAUDE.md
+.pytest_cache/

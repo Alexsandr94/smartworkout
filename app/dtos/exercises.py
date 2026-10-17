@@ -1,5 +1,4 @@
 from dataclasses import dataclass, fields
-from string import ascii_letters, digits, hexdigits
 from urllib.parse import urlsplit
 
 from app.common.pagination import PaginationParams, parse_limit
@@ -17,28 +16,17 @@ def _array_error(name: str, values: list[str], allowed: tuple[str, ...]) -> str 
 
 
 def _valid_uri(value: str) -> bool:
-    if not value or not value.isascii() or any(not char.isprintable() or char.isspace() or char in '<>"{}|\\^`' for char in value):
+    if not value or not value.isascii() or any(char.isspace() for char in value):
         return False
     try:
         parts = urlsplit(value)
+        if not parts.scheme:
+            return False
+        if parts.scheme.lower() in ('http', 'https'):
+            return bool(parts.hostname) and (parts.port is None or parts.port > 0)
+        return bool(value.partition(':')[2])
     except ValueError:
         return False
-    if not parts.scheme or parts.netloc.count('@') > 1:
-        return False
-    authority = parts.netloc.rsplit('@', 1)[-1]
-    if '[' in parts.netloc:
-        literal = parts.netloc.partition('[')[2].partition(']')[0]
-        if literal.lower().startswith('v') and not set(literal) <= set(ascii_letters + digits + "-._~!$&'()*+,;=:"):
-            return False
-    if authority.startswith('['):
-        suffix = authority[authority.index(']') + 1:]
-    else:
-        suffix = authority[authority.index(':'):] if ':' in authority else ''
-    if suffix and (not suffix.startswith(':') or (suffix[1:] and not suffix[1:].isdigit())):
-        return False
-    if any(char in part for part in (parts.path, parts.query, parts.fragment) for char in '[]') or '#' in parts.fragment:
-        return False
-    return all(len(segment) >= 2 and all(char in hexdigits for char in segment[:2]) for segment in value.split('%')[1:])
 
 
 class _ExerciseValidation(BaseDTO):
