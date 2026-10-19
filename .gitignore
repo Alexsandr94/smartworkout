@@ -2,3 +2,11 @@
 __pycache__
 venv/
 .idea/
+
+# Local setup and AI agent instructions
+.local_setup/
+.superpowers/
+docs/superpowers/
+AGENTS.md
+CLAUDE.md
+.pytest_cache/
