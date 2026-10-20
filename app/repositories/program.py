@@ -59,14 +59,21 @@ class ProgramRepository:
         return self.collection.find_one({"_id": ObjectId(program_id)})
 
     def update(self, program_id: str, data: dict) -> dict | None:
-        update_doc = {
-            "title": data["title"],
-            "description": data.get("description", ""),
-            "is_public": data["is_public"],
-            "difficulty": data.get("difficulty", ""),
-            "exercises": self._prepare_exercises(data["exercises"]),
-            "updated_at": datetime.now(UTC)
-        }
+        update_doc = {}
+
+        if "title" in data:
+            update_doc["title"] = data["title"]
+        if "description" in data:
+            update_doc["description"] = data["description"]
+        if "difficulty" in data:
+            update_doc["difficulty"] = data["difficulty"]
+        if "exercises" in data:
+            update_doc["exercises"] = self._prepare_exercises(data["exercises"])
+
+        update_doc["updated_at"] = datetime.now(UTC)
+
+        if not update_doc:
+            return self.get_by_id(program_id)
 
         result = self.collection.update_one(
             {"_id": ObjectId(program_id)},
@@ -95,6 +102,18 @@ class ProgramRepository:
             })
         return processed_exercises
 
+    def get_existing_exercise_ids(self, exercise_ids: list[ObjectId]) -> set[ObjectId]:
+        cursor = self.exercises_collection.find({"_id": {"$in": exercise_ids}}, {"_id": 1})
+        return {doc["_id"] for doc in cursor}
+
     def delete(self, program_id: str) -> bool:
         result = self.collection.delete_one({"_id": ObjectId(program_id)})
+
+        if result.deleted_count > 0:
+            users_collection = self.collection.database["users"]
+            users_collection.update_many(
+                {"favorite_program_ids": ObjectId(program_id)},
+                {"$pull": {"favorite_program_ids": ObjectId(program_id)}}
+            )
+
         return result.deleted_count > 0

@@ -1,5 +1,6 @@
 from app.errors.base import AppError
 from app.errors.exercises import ExerciseInUseError, ExerciseNotFoundError
+from app.errors.program import InvalidProgramIdError, ProgramNotFoundError, ProgramAccessDeniedError
 
 from app.errors.auth import (
     AuthorizationRequiredError,
