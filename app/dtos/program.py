@@ -1,7 +1,7 @@
 from dataclasses import dataclass, fields
 from app.dtos.base import BaseDTO, DTOValidationError
 from app.dtos.utils import validate_object_id
-
+from app.common.pagination import PaginationParams, parse_limit
 
 @dataclass
 class ProgramExerciseDTO(BaseDTO):
@@ -130,3 +130,30 @@ class ProgramUpdateDTO(BaseDTO):
         if self.exercises is not None:
             doc["exercises"] = [ex.to_document() for ex in self.exercises]
         return doc
+
+@dataclass
+class ProgramListDTO(BaseDTO):
+    no_strip_fields = frozenset({'cursor', 'limit'})
+    cursor: str | None = None
+    limit: str = '20'
+
+    def _validate_cursor(self, value: str) -> str | None:
+        try:
+            validate_object_id(value, 'cursor')
+        except DTOValidationError:
+            return 'cursor must be a valid program cursor'
+        return None
+
+    def _validate_limit(self, value: str) -> str | None:
+        try:
+            parse_limit(value)
+        except ValueError as exc:
+            return str(exc)
+        return None
+
+    @property
+    def pagination(self) -> PaginationParams:
+        return PaginationParams(
+            limit=parse_limit(self.limit),
+            cursor=validate_object_id(self.cursor, 'cursor') if self.cursor is not None else None,
+        )

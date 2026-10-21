@@ -1,3 +1,4 @@
+from app.common.pagination import PaginationParams, Page, paginate
 from app.repositories.program import ProgramRepository
 from app.errors.program import ProgramNotFoundError, InvalidProgramIdError, ProgramAccessDeniedError
 from app.dtos.utils import validate_object_id
@@ -13,8 +14,9 @@ class ProgramService:
         self._validate_exercises(data["exercises"])
         return self.program_repo.create(data, author_id)
 
-    def get_all(self, user_id: str) -> list[dict]:
-        return self.program_repo.get_all(user_id)
+    def get_all(self, user_id: str, *, only_my: bool, pagination: PaginationParams) -> Page[dict]:
+        programs = self.program_repo.find_page(user_id, only_my=only_my, pagination=pagination)
+        return paginate(programs, pagination, key=lambda p: p["_id"])
 
     def get_by_id(self, program_id: str, user_id: str) -> dict:
         try:

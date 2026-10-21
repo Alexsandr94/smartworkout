@@ -1,8 +1,10 @@
 from datetime import datetime, UTC
 from pymongo.database import Database
 from pymongo.collection import Collection
+from pymongo import ASCENDING
 from bson import ObjectId
 from app.database.collections import PROGRAMS, EXERCISES
+from app.common.pagination import PaginationParams
 
 
 class ProgramRepository:
@@ -45,14 +47,18 @@ class ProgramRepository:
         doc["_id"] = result.inserted_id
         return doc
 
-    def get_all(self, user_id: str) -> list[dict]:
-        query = {
-            "$or": [
-                {"author_id": ObjectId(user_id)},
-                {"is_public": True}
-            ]
-        }
-        cursor = self.collection.find(query).sort("created_at", -1)
+    def find_page(self, user_id: str, *, only_my: bool, pagination: PaginationParams) -> list[dict]:
+        query = {}
+
+        if only_my:
+            query["author_id"] = ObjectId(user_id)
+        else:
+            query["is_public"] = True
+
+        if pagination.cursor is not None:
+            query["_id"] = {"$gt": pagination.cursor}
+
+        cursor = self.collection.find(query).sort("_id", ASCENDING).limit(pagination.limit + 1)
         return list(cursor)
 
     def get_by_id(self, program_id: str) -> dict | None:

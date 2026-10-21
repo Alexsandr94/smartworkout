@@ -1,11 +1,17 @@
 from http import HTTPStatus
 from app.dependencies import program_service
-from app.dtos.program import ProgramCreateDTO, ProgramUpdateDTO
+from app.dtos.program import ProgramCreateDTO, ProgramUpdateDTO, ProgramListDTO
 from app.dtos.base import DTOValidationError
 from app.httpresponse import json_response, error_response, Response
 from app.routing import router
 from app.middlewares.auth import require_auth
 
+def _serialize_page(page, serializer_func) -> dict:
+    return {
+        "data": [serializer_func(item) for item in page.data],
+        "next": page.next,
+        "has_more": page.has_more
+    }
 
 def _serialize_program(program: dict) -> dict:
     return {
@@ -52,11 +58,37 @@ def create_program(request):
 
     return json_response(_serialize_program(program), HTTPStatus.CREATED)
 
+
 @router.get("/programs", middlewares=(require_auth,))
-def get_programs(request):
+def get_public_programs(request):
+    try:
+        dto = ProgramListDTO.from_dict(request.get("query") or {})
+    except DTOValidationError as exc:
+        return error_response(
+            {"code": "BAD_REQUEST", "message": "Validation failed", "errors": exc.errors},
+            HTTPStatus.BAD_REQUEST,
+        )
+
     user_id = request["user"]["id"]
-    programs = program_service.get_all(user_id)
-    return json_response([_serialize_program(p) for p in programs], HTTPStatus.OK)
+    page = program_service.get_all(user_id, only_my=False, pagination=dto.pagination)
+
+    return json_response(_serialize_page(page, _serialize_program), HTTPStatus.OK)
+
+
+@router.get("/me/programs", middlewares=(require_auth,))
+def get_my_programs(request):
+    try:
+        dto = ProgramListDTO.from_dict(request.get("query") or {})
+    except DTOValidationError as exc:
+        return error_response(
+            {"code": "BAD_REQUEST", "message": "Validation failed", "errors": exc.errors},
+            HTTPStatus.BAD_REQUEST,
+        )
+
+    user_id = request["user"]["id"]
+    page = program_service.get_all(user_id, only_my=True, pagination=dto.pagination)
+
+    return json_response(_serialize_page(page, _serialize_program), HTTPStatus.OK)
 
 
 @router.get("/programs/{id}", middlewares=(require_auth,))
