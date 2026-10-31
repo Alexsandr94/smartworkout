@@ -23,6 +23,7 @@ class TestProgramsAPI:
         payload = {
             "title": "My Test Program",
             "is_public": True,
+            "difficulty": "Beginner",
             "exercises": [
                 {
                     "exercise_id": str(self.exercise.id),

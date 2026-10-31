@@ -63,7 +63,7 @@ class TemporaryAPIServer:
             original_routes = list(router.routes)
             self.context.callback(lambda: router.routes.__setitem__(slice(None), original_routes))
             router.routes.clear()
-            for module_name in ('app.handlers.auth', 'app.handlers.exercises'):
+            for module_name in ('app.handlers.auth', 'app.handlers.exercises', 'app.handlers.program', 'app.handlers.favorites'):
                 if module_name in sys.modules:
                     importlib.reload(sys.modules.get(module_name))
             register_routes()

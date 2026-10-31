@@ -35,6 +35,14 @@ def _serialize_program(program: dict) -> dict:
         "updated_at": program["updated_at"].isoformat()
     }
 
+def _serialize_program_short(program: dict) -> dict:
+    return {
+        "id": str(program["_id"]),
+        "title": program["title"],
+        "description": program["description"],
+        "difficulty": program["difficulty"]
+    }
+
 @router.post("/programs", middlewares=(require_auth,))
 def create_program(request):
     try:
@@ -88,7 +96,7 @@ def get_my_programs(request):
     user_id = request["user"]["id"]
     page = program_service.get_all(user_id, only_my=True, pagination=dto.pagination)
 
-    return json_response(_serialize_page(page, _serialize_program), HTTPStatus.OK)
+    return json_response(_serialize_page(page, _serialize_program_short), HTTPStatus.OK)
 
 
 @router.get("/programs/{id}", middlewares=(require_auth,))

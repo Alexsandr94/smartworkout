@@ -76,10 +76,10 @@ class ProgramRepository:
         if "exercises" in data:
             update_doc["exercises"] = self._prepare_exercises(data["exercises"])
 
-        update_doc["updated_at"] = datetime.now(UTC)
-
         if not update_doc:
             return self.get_by_id(program_id)
+
+        update_doc["updated_at"] = datetime.now(UTC)
 
         result = self.collection.update_one(
             {"_id": ObjectId(program_id)},

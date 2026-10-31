@@ -47,12 +47,23 @@ class ProgramCreateDTO(BaseDTO):
     title: str
     is_public: bool
     exercises: list[ProgramExerciseDTO]
+    difficulty: str
     description: str = ""
-    difficulty: str = ""
 
     def _validate_title(self, value: str) -> str | None:
-        if len(value) < 3:
-            return "title must be at least 3 characters long"
+        if not (1 <= len(value) <= 200):
+            return "title must be between 1 and 200 characters"
+        return None
+
+    def _validate_description(self, value: str) -> str | None:
+        if len(value) > 2000:
+            return "description must be at most 2000 characters"
+        return None
+
+    def _validate_difficulty(self, value: str) -> str | None:
+        allowed = ("Beginner", "Intermediate", "Advanced")
+        if value not in allowed:
+            return f"difficulty must be one of: {', '.join(allowed)}"
         return None
 
     def __post_init__(self):
@@ -95,11 +106,25 @@ class ProgramUpdateDTO(BaseDTO):
     exercises: list[ProgramExerciseDTO] | None = None
 
     def _validate_title(self, value: str) -> str | None:
-        if len(value) < 3:
-            return "title must be at least 3 characters long"
+        if not (1 <= len(value) <= 200):
+            return "title must be between 1 and 200 characters"
+        return None
+
+    def _validate_description(self, value: str) -> str | None:
+        if len(value) > 2000:
+            return "description must be at most 2000 characters"
+        return None
+
+    def _validate_difficulty(self, value: str) -> str | None:
+        allowed = ("Beginner", "Intermediate", "Advanced")
+        if value not in allowed:
+            return f"difficulty must be one of: {', '.join(allowed)}"
         return None
 
     def __post_init__(self):
+        if all(getattr(self, f) is None for f in ("title", "description", "difficulty", "exercises")):
+            raise DTOValidationError([{"field": "body", "message": "at least one field must be provided for update"}])
+
         super().__post_init__()
 
         if self.exercises is not None:
