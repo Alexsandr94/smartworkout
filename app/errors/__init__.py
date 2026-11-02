@@ -14,6 +14,12 @@ from app.errors.user import (
     UserNotFoundError,
 )
 
+from app.errors.session import (
+    SessionAlreadyFinishedError,
+    SessionNotFoundError,
+    SessionProgramNotFoundError,
+)
+
 __all__ = [
     "AppError",
     "ExerciseInUseError",
@@ -25,4 +31,7 @@ __all__ = [
     "AccessDeniedError",
     "DuplicateEmailError",
     "UserNotFoundError",
+    "SessionProgramNotFoundError",
+    "SessionNotFoundError",
+    "SessionAlreadyFinishedError",
 ]

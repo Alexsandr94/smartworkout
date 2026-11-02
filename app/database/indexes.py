@@ -1,9 +1,9 @@
 import logging
 
-from pymongo import ASCENDING, IndexModel
+from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from .client import get_db
-from .collections import EXERCISES, PROGRAMS, USERS
+from .collections import EXERCISES, PROGRAMS, USERS, WORKOUT_SESSIONS
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +14,16 @@ INDEXES = {
     ],
     PROGRAMS: [
         IndexModel([("exercises.exercise_id", ASCENDING)], name="idx_program_exercise_id"),
+    ],
+    WORKOUT_SESSIONS: [
+        IndexModel(
+            [("user_id", ASCENDING), ("started_at", DESCENDING)],
+            name="idx_session_user_started_at",
+        ),
+        IndexModel(
+            [("source_program_id", ASCENDING)],
+            name="idx_session_source_program_id",
+        ),
     ],
     USERS: [
         IndexModel(

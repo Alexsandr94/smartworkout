@@ -41,6 +41,6 @@ def api_server():
 
 @pytest.fixture
 def api(api_server):
-    for name in ('exercises', 'programs', 'users'):
+    for name in ('exercises', 'programs', 'users', 'workout_sessions'):
         api_server.fixture.db[name].delete_many({})
     return api_server
