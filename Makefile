@@ -16,3 +16,7 @@ start: db-up
 
 start-ui: db-up-ui
 	python3 ./main.py
+
+# Создание пользователя с ролью admin
+create-admin:
+	python3 -m scripts.create_admin

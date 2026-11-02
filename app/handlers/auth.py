@@ -1,4 +1,5 @@
 from http import HTTPStatus
+
 from app.core.cookies import build_refresh_cookie, clear_refresh_cookie
 from app.dependencies import auth_service
 from app.dtos.auth import LoginDTO, RegisterDTO
@@ -6,6 +7,7 @@ from app.dtos.base import DTOValidationError
 from app.errors.auth import AuthorizationRequiredError
 from app.httpresponse import Response, error_response, json_response
 from app.routing import router
+
 
 @router.post("/auth/register")
 def register(request):
@@ -28,12 +30,13 @@ def register(request):
 
     return json_response(
         {
-            "id": str(user["_id"]),
-            "email": user["email"],
-            "created_at": user["created_at"].isoformat(),
+            "id": str(user.id),
+            "email": user.email,
+            "role": user.role,
         },
         HTTPStatus.CREATED,
     )
+
 
 @router.post("/auth/login")
 def login(request):
@@ -55,16 +58,17 @@ def login(request):
     )
 
     set_cookie = build_refresh_cookie(
-        result["refresh_token"],
-        max_age=result["refresh_ttl"]
+        result.tokens.refresh_token,
+        max_age=result.tokens.refresh_ttl,
     )
 
     return json_response(
         {
-            "access_token": result["access_token"],
+            "access_token": result.tokens.access_token,
             "user": {
-                "id": str(result["user"]["_id"]),
-                "email": result["user"]["email"],
+                "id": str(result.user.id),
+                "email": result.user.email,
+                "role": result.user.role,
             },
         },
         HTTPStatus.OK,
@@ -72,6 +76,7 @@ def login(request):
             ("Set-Cookie", set_cookie),
         ],
     )
+
 
 @router.post("/auth/refresh")
 def refresh(request):
@@ -84,15 +89,15 @@ def refresh(request):
 
     return json_response(
         {
-            "access_token": result["access_token"],
+            "access_token": result.access_token,
         },
         HTTPStatus.OK,
         headers=[
             (
                 "Set-Cookie",
                 build_refresh_cookie(
-                    result["refresh_token"],
-                    result["refresh_ttl"],
+                    result.refresh_token,
+                    max_age=result.refresh_ttl,
                 ),
             ),
         ],

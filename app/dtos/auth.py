@@ -37,13 +37,15 @@ class LoginDTO(BaseDTO):
     no_strip_fields = frozenset({"password"})
 
     def _validate_email(self, value: str) -> str | None:
-        if not value or not value.strip():
-            return "email is required"
+        self.email = value.lower()
 
-        self.email = value.strip().lower()
+        if not EMAIL_RE.fullmatch(self.email):
+            return "invalid email address"
+
         return None
 
     def _validate_password(self, value: str) -> str | None:
         if not value:
             return "password is required"
+
         return None
