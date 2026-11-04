@@ -74,12 +74,24 @@ class TemporaryAPIServer:
             self.context.callback(self.thread.join, 3)
             self.context.callback(self.server.shutdown)
             self.port = self.server.server_port
-            self.tokens = {role: issue({'sub': '507f1f77bcf86cd799439011', 'email': 'test@example.test', 'role': role}, settings.token_secret, 300) for role in ('USER', 'ADMIN')}
+
+            user_token = issue({'sub': '507f1f77bcf86cd799439011', 'email': 'user@test.com', 'role': 'USER'},
+                               settings.token_secret, 300)
+            user2_token = issue({'sub': '507f1f77bcf86cd799439033', 'email': 'user2@test.com', 'role': 'USER'},
+                                settings.token_secret, 300)
+            admin_token = issue({'sub': '507f1f77bcf86cd799439022', 'email': 'admin@test.com', 'role': 'ADMIN'},
+                                settings.token_secret, 300)
+
+            self.tokens = {
+                'USER': user_token,
+                'USER2': user2_token,
+                'ADMIN': admin_token
+            }
         except Exception:
             self.context.close()
             raise
 
-    def request(self, method, path, role='ADMIN', payload=NO_BODY):
+    def request(self, method, path, role='USER', payload=NO_BODY):
         headers = {}
         if role is not None:
             headers['Authorization'] = 'Bearer ' + self.tokens.get(role)

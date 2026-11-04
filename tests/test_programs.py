@@ -97,52 +97,36 @@ class TestProgramsAPI:
         assert body['errors'][0]['message'] == 'is_public is not allowed'
 
     def test_access_control_private_program(self):
-        """6. Проверка прав: юзер не может прочитать чужую приватную программу (404)"""
-        other_author_id = ObjectId()
-        doc = {
-            "title": "Other Private Program",
-            "description": "",
-            "is_public": False,
-            "difficulty": "",
-            "author_id": other_author_id,
-            "exercises": [],
-            "created_at": datetime.now(UTC),
-            "updated_at": datetime.now(UTC)
-        }
-        program_id = self.db.programs.insert_one(doc).inserted_id
+        """6. Проверка прав: юзер Б не может прочитать приватную программу юзера А (404)"""
+        payload = self.get_valid_payload(is_public=False)
+        _, created, _ = self.api.request('POST', '/programs', payload=payload, role='USER')
+        program_id = created['id']
 
-        status, body, _ = self.api.request('GET', f'/programs/{program_id}', role='USER')
+        status, body, _ = self.api.request('GET', f'/programs/{program_id}', role='USER2')
 
         assert status == 404
         assert body['code'] == 'NOT_FOUND'
 
     def test_delete_program_cascade(self):
-        """7. Каскадное удаление: при удалении программы она исчезает из избранного"""
-        # 1. Создаем пользователя USER в базе, чтобы избранное работало
-        user_id = ObjectId('507f1f77bcf86cd799439011')  # ID из support.py
+        """7. Каскадное удаление: при удалении программы она исчезает из избранного других юзеров"""
+        user_b_id = ObjectId('507f1f77bcf86cd799439033')
         self.db.users.insert_one({
-            "_id": user_id,
-            "email": "test@example.test",
-            "password_hash": "dummy",
-            "role": "USER",
-            "created_at": datetime.now(UTC),
-            "favorite_program_ids": []
+            "_id": user_b_id, "email": "user2@test.com", "password_hash": "dummy",
+            "role": "USER", "created_at": datetime.now(UTC), "favorite_program_ids": []
         })
 
-        # 2. ADMIN создает публичную программу
-        _, created, _ = self.api.request('POST', '/programs', payload=self.get_valid_payload(), role='ADMIN')
+        payload = self.get_valid_payload(is_public=True)
+        _, created, _ = self.api.request('POST', '/programs', payload=payload, role='USER')
         program_id = created['id']
 
-        # 3. USER добавляет её в избранное
-        self.api.request('POST', '/me/favorites', payload={"program_id": program_id}, role='USER')
+        status, _, _ = self.api.request('POST', '/me/favorites', payload={"program_id": program_id}, role='USER2')
+        assert status == 201
 
-        # 4. ADMIN удаляет программу
-        status, _, _ = self.api.request('DELETE', f'/programs/{program_id}', role='ADMIN')
+        status, _, _ = self.api.request('DELETE', f'/programs/{program_id}', role='USER')
         assert status == 204
 
-        # 5. Проверяем, что программа исчезла из избранного у USER
-        user_doc = self.db.users.find_one({"_id": user_id})
-        assert ObjectId(program_id) not in user_doc.get('favorite_program_ids', [])
+        user_b_doc = self.db.users.find_one({"_id": user_b_id})
+        assert ObjectId(program_id) not in user_b_doc.get('favorite_program_ids', [])
 
     def test_pagination_public_programs(self):
         """8. Пагинация: проверка лимита и курсоров"""

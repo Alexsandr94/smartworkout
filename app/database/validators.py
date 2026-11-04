@@ -1,7 +1,7 @@
 import logging
 
 from .client import get_db
-from .collections import EXERCISES, USERS
+from .collections import EXERCISES, USERS, PROGRAMS
 from app.models.exercise import DESCRIPTION_MAX_LENGTH, EQUIPMENT, MUSCLE_GROUPS, NAME_MAX_LENGTH
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,44 @@ VALIDATORS = {
                     "uniqueItems": True,
                     "description": "IDs of programs added to favorites",
                 },
+            },
+            "additionalProperties": False,
+        },
+        "validationLevel": "strict",
+        "validationAction": "error",
+    },
+    PROGRAMS: {
+        "schema": {
+            "bsonType": "object",
+            "required": ["title", "author_id", "is_public", "difficulty", "exercises", "created_at", "updated_at"],
+            "properties": {
+                "_id": {"bsonType": "objectId"},
+                "title": {"bsonType": "string", "minLength": 1, "maxLength": 200},
+                "description": {"bsonType": "string", "maxLength": 2000},
+                "author_id": {"bsonType": "objectId"},
+                "is_public": {"bsonType": "bool"},
+                "difficulty": {
+                    "bsonType": "string",
+                    "enum": ["Beginner", "Intermediate", "Advanced"]
+                },
+                "exercises": {
+                    "bsonType": "array",
+                    "minItems": 1,
+                    "items": {
+                        "bsonType": "object",
+                        "required": ["exercise_id", "exercise_name", "order", "sets", "reps", "rest_sec"],
+                        "properties": {
+                            "exercise_id": {"bsonType": "objectId"},
+                            "exercise_name": {"bsonType": "string"},
+                            "order": {"bsonType": "int", "minimum": 1},
+                            "sets": {"bsonType": "int", "minimum": 1},
+                            "reps": {"bsonType": "int", "minimum": 1},
+                            "rest_sec": {"bsonType": "int", "minimum": 0}
+                        }
+                    }
+                },
+                "created_at": {"bsonType": "date"},
+                "updated_at": {"bsonType": "date"},
             },
             "additionalProperties": False,
         },

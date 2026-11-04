@@ -5,6 +5,7 @@ from app.dtos.base import DTOValidationError
 from app.httpresponse import json_response, error_response, Response
 from app.routing import router
 from app.middlewares.auth import require_auth
+from datetime import UTC
 
 def _serialize_page(page, serializer_func) -> dict:
     return {
@@ -14,6 +15,14 @@ def _serialize_page(page, serializer_func) -> dict:
     }
 
 def _serialize_program(program: dict) -> dict:
+    created_at = program["created_at"]
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=UTC)
+
+    updated_at = program["updated_at"]
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=UTC)
+
     return {
         "id": str(program["_id"]),
         "title": program["title"],
@@ -31,8 +40,8 @@ def _serialize_program(program: dict) -> dict:
                 "rest_sec": ex["rest_sec"]
             } for ex in program["exercises"]
         ],
-        "created_at": program["created_at"].isoformat(),
-        "updated_at": program["updated_at"].isoformat()
+        "created_at": created_at.astimezone(UTC).isoformat(timespec='milliseconds'),
+        "updated_at": updated_at.astimezone(UTC).isoformat(timespec='milliseconds')
     }
 
 def _serialize_program_short(program: dict) -> dict:

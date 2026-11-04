@@ -5,7 +5,7 @@ from pymongo import ASCENDING
 from bson import ObjectId
 from app.database.collections import PROGRAMS, EXERCISES
 from app.common.pagination import PaginationParams
-
+from app.errors.exercises import ExerciseNotFoundError
 
 class ProgramRepository:
     def __init__(self, db: Database):
@@ -19,7 +19,9 @@ class ProgramRepository:
             ex_obj_id = ObjectId(ex["exercise_id"])
 
             exercise_doc = self.exercises_collection.find_one({"_id": ex_obj_id})
-            ex_name = exercise_doc["name"] if exercise_doc else "Unknown Exercise"
+            if not exercise_doc:
+                raise ExerciseNotFoundError()
+            ex_name = exercise_doc["name"]
 
             processed_exercises.append({
                 "exercise_id": ex_obj_id,
@@ -96,7 +98,9 @@ class ProgramRepository:
         for ex in exercises_data:
             ex_obj_id = ObjectId(ex["exercise_id"])
             exercise_doc = self.exercises_collection.find_one({"_id": ex_obj_id})
-            ex_name = exercise_doc["name"] if exercise_doc else "Unknown Exercise"
+            if not exercise_doc:
+                raise ExerciseNotFoundError()
+            ex_name = exercise_doc["name"]
 
             processed_exercises.append({
                 "exercise_id": ex_obj_id,
