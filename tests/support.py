@@ -91,7 +91,7 @@ class TemporaryAPIServer:
             self.context.close()
             raise
 
-    def request(self, method, path, role='USER', payload=NO_BODY):
+    def request(self, method, path, role='ADMIN', payload=NO_BODY):
         headers = {}
         if role is not None:
             headers['Authorization'] = 'Bearer ' + self.tokens.get(role)

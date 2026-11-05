@@ -88,6 +88,10 @@ class ProgramCreateDTO(BaseDTO):
             raise DTOValidationError(errors)
         self.exercises = validated
 
+        orders = [ex.order for ex in self.exercises]
+        if len(orders) != len(set(orders)):
+            raise DTOValidationError([{"field": "exercises", "message": "order values must be unique"}])
+
     def to_document(self) -> dict:
         return {
             "title": self.title,
@@ -146,6 +150,10 @@ class ProgramUpdateDTO(BaseDTO):
             if errors:
                 raise DTOValidationError(errors)
             self.exercises = validated
+
+            orders = [ex.order for ex in self.exercises]
+            if len(orders) != len(set(orders)):
+                raise DTOValidationError([{"field": "exercises", "message": "order values must be unique"}])
 
     def to_document(self) -> dict:
         doc = {}

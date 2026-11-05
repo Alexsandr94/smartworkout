@@ -40,7 +40,7 @@ class TestProgramsAPI:
     def test_create_program_success(self):
         """1. Успешное создание программы"""
         payload = self.get_valid_payload()
-        status, body, _ = self.api.request('POST', '/programs', payload=payload)
+        status, body, _ = self.api.request('POST', '/programs', payload=payload, role='USER')
 
         assert status == 201
         assert body['title'] == "My Test Program"
@@ -53,7 +53,7 @@ class TestProgramsAPI:
         payload = self.get_valid_payload()
         payload['exercises'][0]['exercise_id'] = str(ObjectId())  # Случайный несуществующий ID
 
-        status, body, _ = self.api.request('POST', '/programs', payload=payload)
+        status, body, _ = self.api.request('POST', '/programs', payload=payload, role='USER')
 
         assert status == 400
         assert body['code'] == 'BAD_REQUEST'
@@ -66,7 +66,7 @@ class TestProgramsAPI:
         payload = self.get_valid_payload()
         payload['exercises'][0]['sets'] = -1
 
-        status, body, _ = self.api.request('POST', '/programs', payload=payload)
+        status, body, _ = self.api.request('POST', '/programs', payload=payload, role='USER')
 
         assert status == 400
         assert body['errors'][0]['field'] == 'exercises.0.sets'
@@ -74,11 +74,11 @@ class TestProgramsAPI:
 
     def test_patch_program_partial_update(self):
         """4. Частичное обновление (PATCH): меняем только title"""
-        _, created, _ = self.api.request('POST', '/programs', payload=self.get_valid_payload())
+        _, created, _ = self.api.request('POST', '/programs', payload=self.get_valid_payload(), role='USER')
         program_id = created['id']
 
         # Обновляем только title
-        status, updated, _ = self.api.request('PATCH', f'/programs/{program_id}', payload={"title": "UPDATED Title"})
+        status, updated, _ = self.api.request('PATCH', f'/programs/{program_id}', payload={"title": "UPDATED Title"}, role='USER')
 
         assert status == 200
         assert updated['title'] == "UPDATED Title"
@@ -87,10 +87,10 @@ class TestProgramsAPI:
 
     def test_patch_program_forbidden_is_public(self):
         """5. Ошибка 400, если в PATCH пытаются передать is_public"""
-        _, created, _ = self.api.request('POST', '/programs', payload=self.get_valid_payload())
+        _, created, _ = self.api.request('POST', '/programs', payload=self.get_valid_payload(), role='USER')
         program_id = created['id']
 
-        status, body, _ = self.api.request('PATCH', f'/programs/{program_id}', payload={"is_public": False})
+        status, body, _ = self.api.request('PATCH', f'/programs/{program_id}', payload={"is_public": False}, role='USER')
 
         assert status == 400
         assert body['errors'][0]['field'] == 'is_public'
@@ -122,6 +122,9 @@ class TestProgramsAPI:
         status, _, _ = self.api.request('POST', '/me/favorites', payload={"program_id": program_id}, role='USER2')
         assert status == 201
 
+        user_b_doc = self.db.users.find_one({"_id": user_b_id})
+        assert ObjectId(program_id) in user_b_doc.get('favorite_program_ids', [])
+
         status, _, _ = self.api.request('DELETE', f'/programs/{program_id}', role='USER')
         assert status == 204
 
@@ -132,10 +135,10 @@ class TestProgramsAPI:
         """8. Пагинация: проверка лимита и курсоров"""
         # Создаем 3 программы
         for i in range(3):
-            self.api.request('POST', '/programs', payload=self.get_valid_payload(title=f"Program {i}"))
+            self.api.request('POST', '/programs', payload=self.get_valid_payload(title=f"Program {i}"), role='USER')
 
         # Запрашиваем по 2 штуки
-        status, page1, _ = self.api.request('GET', '/programs?limit=2')
+        status, page1, _ = self.api.request('GET', '/programs?limit=2', role='USER')
 
         assert status == 200
         assert len(page1['data']) == 2
@@ -143,7 +146,7 @@ class TestProgramsAPI:
         assert page1['next'] is not None
 
         # Запрашиваем следующую страницу по курсору
-        status, page2, _ = self.api.request('GET', f"/programs?limit=2&cursor={page1['next']}")
+        status, page2, _ = self.api.request('GET', f"/programs?limit=2&cursor={page1['next']}", role='USER')
 
         assert status == 200
         assert len(page2['data']) == 1
