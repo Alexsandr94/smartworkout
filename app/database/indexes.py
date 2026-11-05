@@ -21,6 +21,10 @@ INDEXES = {
             name="idx_session_user_started_at",
         ),
         IndexModel(
+            [("user_id", ASCENDING), ("_id", DESCENDING)],
+            name="idx_session_user_id",
+        ),
+        IndexModel(
             [("source_program_id", ASCENDING)],
             name="idx_session_source_program_id",
         ),

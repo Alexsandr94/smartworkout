@@ -36,11 +36,18 @@ VALIDATORS = {
     WORKOUT_SESSIONS: {
         "schema": {
             "bsonType": "object",
-            "required": ["user_id", "source_program_id", "started_at", "exercises"],
+            "required": [
+                "user_id",
+                "source_program_id",
+                "source_program_title",
+                "started_at",
+                "exercises",
+            ],
             "properties": {
                 "_id": {"bsonType": "objectId"},
                 "user_id": {"bsonType": "objectId"},
                 "source_program_id": {"bsonType": "objectId"},
+                "source_program_title": {"bsonType": "string", "minLength": 1},
                 "started_at": {"bsonType": "date"},
                 "finished_at": {"bsonType": "date"},
                 "duration_sec": {"bsonType": "int", "minimum": 0},

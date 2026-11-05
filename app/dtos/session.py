@@ -1,5 +1,6 @@
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 
+from app.common.pagination import PaginationParams, parse_limit
 from app.dtos.base import BaseDTO, DTOValidationError
 from app.dtos.utils import validate_object_id
 
@@ -101,8 +102,45 @@ class SessionStartDTO(BaseDTO):
 
 
 @dataclass
+class SessionListDTO(BaseDTO):
+    no_strip_fields = frozenset({"cursor", "limit"})
+    cursor: str | None = None
+    limit: str = "20"
+
+    def _validate_cursor(self, value: str) -> str | None:
+        try:
+            validate_object_id(value, "cursor")
+        except DTOValidationError:
+            return "cursor must be a valid session cursor"
+        return None
+
+    def _validate_limit(self, value: str) -> str | None:
+        try:
+            parse_limit(value)
+        except ValueError as exc:
+            return str(exc)
+        return None
+
+    @property
+    def pagination(self) -> PaginationParams:
+        return PaginationParams(
+            limit=parse_limit(self.limit),
+            cursor=(
+                validate_object_id(self.cursor, "cursor")
+                if self.cursor is not None
+                else None
+            ),
+        )
+
+
+@dataclass
 class SessionFinishExerciseDTO(BaseDTO):
     exercise_id: str
+    exercise_name: str
+    order: int
+    planned_sets: int
+    planned_reps: int
+    rest_sec: int
     completed_sets: int
     actual_reps: list[int]
     is_completed: bool
@@ -113,6 +151,31 @@ class SessionFinishExerciseDTO(BaseDTO):
             validate_object_id(value, "exercise_id")
         except DTOValidationError:
             return "invalid exercise_id format"
+        return None
+
+    def _validate_exercise_name(self, value: str) -> str | None:
+        if not value:
+            return "exercise_name cannot be blank"
+        return None
+
+    def _validate_order(self, value: int) -> str | None:
+        if value <= 0:
+            return "order must be greater than 0"
+        return None
+
+    def _validate_planned_sets(self, value: int) -> str | None:
+        if value <= 0:
+            return "planned_sets must be greater than 0"
+        return None
+
+    def _validate_planned_reps(self, value: int) -> str | None:
+        if value <= 0:
+            return "planned_reps must be greater than 0"
+        return None
+
+    def _validate_rest_sec(self, value: int) -> str | None:
+        if value < 0:
+            return "rest_sec cannot be negative"
         return None
 
     def _validate_completed_sets(self, value: int) -> str | None:
@@ -150,10 +213,18 @@ class SessionFinishExerciseDTO(BaseDTO):
 
 @dataclass
 class SessionFinishDTO(BaseDTO):
-    exercises: list[SessionFinishExerciseDTO] = field(default_factory=list)
+    exercises: list[SessionFinishExerciseDTO]
 
     def __post_init__(self):
         super().__post_init__()
+
+        if not self.exercises:
+            raise DTOValidationError([
+                {
+                    "field": "exercises",
+                    "message": "at least one exercise result is required",
+                }
+            ])
 
         validated = []
         errors = []

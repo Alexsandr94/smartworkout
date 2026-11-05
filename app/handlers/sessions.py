@@ -5,7 +5,7 @@ from bson import ObjectId
 
 from app.dependencies import session_service
 from app.dtos.base import DTOValidationError
-from app.dtos.session import SessionFinishDTO, SessionStartDTO
+from app.dtos.session import SessionFinishDTO, SessionListDTO, SessionStartDTO
 from app.errors.http import bad_request
 from app.httpresponse import Response, error_response, json_response
 from app.middlewares.auth import require_auth
@@ -46,11 +46,32 @@ def _validation_response(exc: DTOValidationError) -> Response:
 
 @router.get("/me/sessions", middlewares=[require_auth])
 def get_my_sessions(request):
-    sessions = session_service.get_user_sessions(request["user"]["id"])
+    try:
+        filters = SessionListDTO.from_dict(request.get("query") or {})
+    except DTOValidationError as exc:
+        return _validation_response(exc)
+
+    page = session_service.get_user_sessions(
+        request["user"]["id"],
+        filters.pagination,
+    )
     return json_response(
-        [_serialize_session(session) for session in sessions],
+        {
+            "data": [_serialize_session(session) for session in page.data],
+            "next": page.next,
+            "has_more": page.has_more,
+        },
         HTTPStatus.OK,
     )
+
+
+@router.get("/me/sessions/{session_id}", middlewares=[require_auth])
+def get_my_session(request):
+    session = session_service.get_user_session(
+        request["user"]["id"],
+        request["params"]["session_id"],
+    )
+    return json_response(_serialize_session(session), HTTPStatus.OK)
 
 
 @router.post("/sessions", middlewares=[require_auth])

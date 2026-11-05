@@ -4,6 +4,7 @@ from bson import ObjectId
 from pymongo.collection import Collection
 from pymongo.database import Database
 
+from app.common.pagination import PaginationParams
 from app.database.collections import EXERCISES, PROGRAMS, WORKOUT_SESSIONS
 
 
@@ -17,11 +18,13 @@ class SessionRepository:
         self,
         user_id: ObjectId,
         source_program_id: ObjectId,
+        source_program_title: str,
         exercises: list[dict],
     ) -> dict:
         doc = {
             "user_id": user_id,
             "source_program_id": source_program_id,
+            "source_program_title": source_program_title,
             "started_at": datetime.now(UTC),
             "exercises": exercises,
         }
@@ -33,11 +36,20 @@ class SessionRepository:
     def find_by_id(self, session_id: ObjectId) -> dict | None:
         return self.collection.find_one({"_id": session_id})
 
-    def find_by_user_id(self, user_id: ObjectId) -> list[dict]:
-        sessions = self.collection.find(
-            {"user_id": user_id}
-        ).sort("started_at", -1)
-        return list(sessions)
+    def find_page_by_user_id(
+        self,
+        user_id: ObjectId,
+        pagination: PaginationParams,
+    ) -> list[dict]:
+        query: dict = {"user_id": user_id}
+        if pagination.cursor is not None:
+            query["_id"] = {"$lt": pagination.cursor}
+
+        return list(
+            self.collection.find(query)
+            .sort("_id", -1)
+            .limit(pagination.limit + 1)
+        )
 
     def find_program_by_id(self, program_id: ObjectId) -> dict | None:
         return self.programs.find_one({"_id": program_id})

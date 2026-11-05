@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from bson import ObjectId
 
+from app.common.pagination import Page, PaginationParams, paginate
 from app.dtos.base import DTOValidationError
 from app.errors.session import (
     SessionAlreadyFinishedError,
@@ -15,8 +16,28 @@ class SessionService:
     def __init__(self, session_repo: SessionRepository):
         self.session_repo = session_repo
 
-    def get_user_sessions(self, user_id: str) -> list[dict]:
-        return self.session_repo.find_by_user_id(ObjectId(user_id))
+    def get_user_sessions(
+        self,
+        user_id: str,
+        pagination: PaginationParams,
+    ) -> Page[dict]:
+        sessions = self.session_repo.find_page_by_user_id(
+            ObjectId(user_id),
+            pagination,
+        )
+        page = paginate(sessions, pagination, key=lambda session: session["_id"])
+        page.data = [self._to_short_view(session) for session in page.data]
+        return page
+
+    def get_user_session(self, user_id: str, session_id: str) -> dict:
+        if not ObjectId.is_valid(session_id):
+            raise SessionNotFoundError()
+
+        session = self.session_repo.find_by_id(ObjectId(session_id))
+        if session is None or session.get("user_id") != ObjectId(user_id):
+            raise SessionNotFoundError()
+
+        return session
 
     def start_session(
         self,
@@ -36,14 +57,16 @@ class SessionService:
         if not program.get("is_public", False) and not is_owner:
             raise SessionProgramNotFoundError()
 
+        program_exercises = program.get("exercises", [])
         if exercises is None:
-            snapshot = self._snapshot_from_program(program.get("exercises", []))
+            snapshot = self._snapshot_from_program(program_exercises)
         else:
-            snapshot = self._snapshot_from_override(exercises)
+            snapshot = self._snapshot_from_override(exercises, program_exercises)
 
         return self.session_repo.create(
             user_id=user_obj_id,
             source_program_id=program_obj_id,
+            source_program_title=program.get("title", ""),
             exercises=snapshot,
         )
 
@@ -106,17 +129,48 @@ class SessionService:
 
         return sorted(snapshot, key=lambda item: item["order"])
 
-    def _snapshot_from_override(self, exercises: list[dict]) -> list[dict]:
+    def _snapshot_from_override(
+        self,
+        exercises: list[dict],
+        program_exercises: list[dict],
+    ) -> list[dict]:
+        allowed_ids = {
+            ObjectId(item["exercise_id"])
+            if not isinstance(item["exercise_id"], ObjectId)
+            else item["exercise_id"]
+            for item in program_exercises
+        }
+        program_names: dict[ObjectId, str] = {}
+        for item in program_exercises:
+            exercise_id = item["exercise_id"]
+            if not isinstance(exercise_id, ObjectId):
+                exercise_id = ObjectId(exercise_id)
+            name = item.get("exercise_name")
+            if name and exercise_id not in program_names:
+                program_names[exercise_id] = name
+
         exercise_ids = [ObjectId(exercise["exercise_id"]) for exercise in exercises]
-        names = self.session_repo.get_exercise_names(exercise_ids)
+        missing_names = [exercise_id for exercise_id in set(exercise_ids) if exercise_id not in program_names]
+        if missing_names:
+            program_names.update(self.session_repo.get_exercise_names(missing_names))
 
         errors = []
-        for index, exercise_id in enumerate(exercise_ids):
-            if exercise_id not in names:
+        seen_orders = set()
+
+        for index, (exercise, exercise_id) in enumerate(zip(exercises, exercise_ids)):
+            if exercise_id not in allowed_ids:
                 errors.append({
                     "field": f"exercises.{index}.exercise_id",
-                    "message": "Exercise not found",
+                    "message": "exercise is not part of the source program",
                 })
+
+            order = exercise["order"]
+            if order in seen_orders:
+                errors.append({
+                    "field": f"exercises.{index}.order",
+                    "message": "order must be unique within a session",
+                })
+            seen_orders.add(order)
 
         if errors:
             raise DTOValidationError(errors)
@@ -125,7 +179,7 @@ class SessionService:
         for exercise, exercise_id in zip(exercises, exercise_ids):
             snapshot.append(self._snapshot_exercise(
                 exercise_id=exercise_id,
-                exercise_name=names[exercise_id],
+                exercise_name=program_names.get(exercise_id, "Unknown Exercise"),
                 order=exercise["order"],
                 sets=exercise["sets"],
                 reps=exercise["reps"],
@@ -162,28 +216,46 @@ class SessionService:
         exercises: list[dict],
         results: list[dict],
     ) -> list[dict]:
-        by_id = {str(exercise["exercise_id"]): exercise for exercise in exercises}
-        result_ids = set()
+        by_key = {
+            (str(exercise["exercise_id"]), exercise["order"]): exercise
+            for exercise in exercises
+        }
+        result_keys = set()
         errors = []
 
-        for index, result in enumerate(results):
-            exercise_id = result["exercise_id"]
+        snapshot_fields = (
+            "exercise_name",
+            "order",
+            "planned_sets",
+            "planned_reps",
+            "rest_sec",
+        )
 
-            if exercise_id in result_ids:
+        for index, result in enumerate(results):
+            key = (result["exercise_id"], result["order"])
+
+            if key in result_keys:
                 errors.append({
-                    "field": f"exercises.{index}.exercise_id",
+                    "field": f"exercises.{index}.order",
                     "message": "exercise result is duplicated",
                 })
                 continue
-            result_ids.add(exercise_id)
+            result_keys.add(key)
 
-            planned = by_id.get(exercise_id)
+            planned = by_key.get(key)
             if planned is None:
                 errors.append({
                     "field": f"exercises.{index}.exercise_id",
                     "message": "exercise is not part of this session",
                 })
                 continue
+
+            for field in snapshot_fields:
+                if result[field] != planned[field]:
+                    errors.append({
+                        "field": f"exercises.{index}.{field}",
+                        "message": f"{field} does not match the session snapshot",
+                    })
 
             if result["completed_sets"] > planned["planned_sets"]:
                 errors.append({
@@ -207,13 +279,30 @@ class SessionService:
             raise DTOValidationError(errors)
 
         updated = [dict(exercise) for exercise in exercises]
-        updated_by_id = {str(exercise["exercise_id"]): exercise for exercise in updated}
+        updated_by_key = {
+            (str(exercise["exercise_id"]), exercise["order"]): exercise
+            for exercise in updated
+        }
 
         for result in results:
-            exercise = updated_by_id[result["exercise_id"]]
+            exercise = updated_by_key[(result["exercise_id"], result["order"])]
             exercise["completed_sets"] = result["completed_sets"]
             exercise["actual_reps"] = list(result["actual_reps"])
             exercise["is_completed"] = result["is_completed"]
             exercise["is_skipped"] = result["is_skipped"]
 
         return updated
+
+    @staticmethod
+    def _to_short_view(session: dict) -> dict:
+        result = {
+            "_id": session["_id"],
+            "source_program_id": session["source_program_id"],
+            "source_program_title": session.get("source_program_title", ""),
+            "started_at": session["started_at"],
+        }
+        if session.get("finished_at") is not None:
+            result["finished_at"] = session["finished_at"]
+        if session.get("duration_sec") is not None:
+            result["duration_sec"] = session["duration_sec"]
+        return result
