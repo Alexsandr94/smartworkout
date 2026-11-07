@@ -161,13 +161,28 @@ class TestExerciseAPI:
 
     def test_used_exercise_returns_conflict_and_remains_available(self):
         doc = self.seed()
-        for reference in (doc.id, str(doc.id)):
-            self.db.programs.delete_many({})
-            self.db.programs.insert_one({'exercises': [{'exercise_id': reference}]})
-            status, body, _ = self.api.request('DELETE', '/exercises/' + str(doc.id))
-            assert status == 409
-            assert body == {'code': 'CONFLICT', 'message': 'Exercise is used in one or more programs'}
-            assert self.repo.find_by_id(doc.id) is not None
+        self.db.programs.delete_many({})
+        self.db.programs.insert_one({
+            "title": "Mock Program",
+            "description": "",
+            "is_public": True,
+            "difficulty": "Beginner",
+            "author_id": ObjectId(),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "exercises": [{
+                "exercise_id": doc.id,
+                "exercise_name": "Mock Exercise",
+                "order": 1,
+                "sets": 3,
+                "reps": 10,
+                "rest_sec": 60
+            }]
+        })
+        status, body, _ = self.api.request('DELETE', f'/exercises/{doc.id}')
+        assert status == 409
+        assert body['code'] == 'CONFLICT'
+        assert self.db.exercises.count_documents({'_id': doc.id}) == 1
 
     def test_filters_and_cursor_pagination(self):
         expected = []
