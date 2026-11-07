@@ -157,11 +157,18 @@ class ProgramUpdateDTO(BaseDTO):
 
     def to_document(self) -> dict:
         doc = {}
-        if self.title is not None: doc["title"] = self.title
-        if self.description is not None: doc["description"] = self.description
-        if self.difficulty is not None: doc["difficulty"] = self.difficulty
+        if self.title is not None: 
+            doc["title"] = self.title
+
+        if self.description is not None: 
+            doc["description"] = self.description
+
+        if self.difficulty is not None: 
+            doc["difficulty"] = self.difficulty
+
         if self.exercises is not None:
             doc["exercises"] = [ex.to_document() for ex in self.exercises]
+            
         return doc
 
 @dataclass

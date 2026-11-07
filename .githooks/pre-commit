@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -eu
+
+echo "Running Ruff..."
+
+python3 -m ruff check .
+
+echo "Ruff checks passed."
