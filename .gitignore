@@ -10,3 +10,9 @@ docs/superpowers/
 AGENTS.md
 CLAUDE.md
 .pytest_cache/
+
+
+requests.http
+project_all.txt
+seed.py
+collect_files.py

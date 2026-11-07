@@ -1,5 +1,5 @@
-from app.repositories import ExerciseRepository, UserRepository
-from app.services import ExerciseService, UserService, AuthService
+from app.repositories import ExerciseRepository, UserRepository, ProgramRepository
+from app.services import ExerciseService, UserService, AuthService, ProgramService
 from app.database import get_db
 
 from pymongo.database import Database
@@ -20,3 +20,5 @@ auth_service = AuthService(
 
 favorite_repo = FavoriteRepository(db)
 favorite_service = FavoriteService(favorite_repo)
+program_repo = ProgramRepository(db)
+program_service = ProgramService(program_repo)
