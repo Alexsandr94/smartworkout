@@ -217,7 +217,7 @@ class SessionService:
         results: list[dict],
     ) -> list[dict]:
         by_key = {
-            (str(exercise["exercise_id"]), exercise["order"]): exercise
+            (exercise["exercise_id"], exercise["order"]): exercise
             for exercise in exercises
         }
         result_keys = set()
@@ -232,7 +232,8 @@ class SessionService:
         )
 
         for index, result in enumerate(results):
-            key = (result["exercise_id"], result["order"])
+            exercise_id = ObjectId(result["exercise_id"])
+            key = (exercise_id, result["order"])
 
             if key in result_keys:
                 errors.append({
@@ -280,12 +281,13 @@ class SessionService:
 
         updated = [dict(exercise) for exercise in exercises]
         updated_by_key = {
-            (str(exercise["exercise_id"]), exercise["order"]): exercise
+            (exercise["exercise_id"], exercise["order"]): exercise
             for exercise in updated
         }
 
         for result in results:
-            exercise = updated_by_key[(result["exercise_id"], result["order"])]
+            exercise_id = ObjectId(result["exercise_id"])
+            exercise = updated_by_key[(exercise_id, result["order"])]
             exercise["completed_sets"] = result["completed_sets"]
             exercise["actual_reps"] = list(result["actual_reps"])
             exercise["is_completed"] = result["is_completed"]

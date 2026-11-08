@@ -240,6 +240,44 @@ class TestSessionsAPI:
         assert body["exercises"][0]["is_completed"] is True
         assert "finished_at" in body
 
+    def test_finish_session_accepts_uppercase_exercise_id(self):
+        program_id, _ = self.seed_program()
+
+        _, started, _ = self.api.request(
+            "POST",
+            "/sessions",
+            role="USER",
+            payload={"program_id": str(program_id)},
+        )
+
+        session_id = ObjectId(started["id"])
+
+        result = self.finish_item(started["exercises"][0])
+
+        original_exercise_id = result["exercise_id"]
+        result["exercise_id"] = original_exercise_id.upper()
+
+        status, body, _ = self.api.request(
+            "POST",
+            f"/sessions/{session_id}/finish",
+            role="USER",
+            payload={"exercises": [result]},
+        )
+
+        assert status == 200
+        assert body["exercises"][0]["exercise_id"] == original_exercise_id
+
+        saved_session = self.db.workout_sessions.find_one({"_id": session_id})
+
+        assert isinstance(
+            saved_session["exercises"][0]["exercise_id"],
+            ObjectId,
+        )
+        assert (
+                saved_session["exercises"][0]["exercise_id"]
+                == ObjectId(original_exercise_id)
+        )
+
     @pytest.mark.parametrize("payload", [{}, {"exercises": []}])
     def test_finish_session_requires_at_least_one_exercise(self, payload):
         program_id, _ = self.seed_program()
