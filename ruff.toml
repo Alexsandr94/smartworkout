@@ -1,0 +1,11 @@
+target-version = "py312"
+line-length = 100
+
+[lint]
+select = ["E4", "E7", "E9", "F"]
+
+[lint.per-file-ignores]
+"app/errors/__init__.py" = ["F401"]
+"app/handlers/__init__.py" = ["F401"]
+"app/repositories/__init__.py" = ["F401"]
+"app/services/__init__.py" = ["F401"]

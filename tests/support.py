@@ -13,23 +13,31 @@ from pytest import MonkeyPatch
 from app.core.config import settings
 
 
-
 class TemporaryDatabase:
-    prefix = 'smartworkout_exercises_test_'
+    prefix = "smartworkout_exercises_test_"
 
     def __init__(self):
         self.name = self.prefix + uuid4().hex
-        self.client = MongoClient(settings.mongo_uri, serverSelectionTimeoutMS=3000, tz_aware=True)
+        self.client = MongoClient(
+            settings.mongo_uri,
+            serverSelectionTimeoutMS=3000,
+            tz_aware=True,
+        )
         try:
-            self.client.admin.command('ping')
+            self.client.admin.command("ping")
         except Exception:
             self.client.close()
             raise
+
         self.db = self.client[self.name]
 
     def close(self):
-        if not self.name.startswith(self.prefix) or self.name == settings.mongo_db:
-            raise RuntimeError('Refusing to drop a non-test database')
+        if (
+            not self.name.startswith(self.prefix)
+            or self.name == settings.mongo_db
+        ):
+            raise RuntimeError("Refusing to drop a non-test database")
+
         try:
             self.client.drop_database(self.name)
         finally:
@@ -37,7 +45,6 @@ class TemporaryDatabase:
 
 
 NO_BODY = object()
-
 
 
 class TemporaryAPIServer:
@@ -51,53 +58,138 @@ class TemporaryAPIServer:
         self.fixture = TemporaryDatabase()
         self.context = ExitStack()
         self.context.callback(self.fixture.close)
+
         try:
             patcher = self.context.enter_context(MonkeyPatch.context())
-            patcher.setattr(client, '_db', self.fixture.db)
+            patcher.setattr(client, "_db", self.fixture.db)
+
             validators.ensure_schema()
             indexes.ensure_indexes()
-            was_loaded = 'app.dependencies' in sys.modules
-            dependencies = importlib.import_module('app.dependencies')
+
+            was_loaded = "app.dependencies" in sys.modules
+            dependencies = importlib.import_module("app.dependencies")
+
             if was_loaded:
                 importlib.reload(dependencies)
+
             original_routes = list(router.routes)
-            self.context.callback(lambda: router.routes.__setitem__(slice(None), original_routes))
+            self.context.callback(
+                lambda: router.routes.__setitem__(
+                    slice(None),
+                    original_routes,
+                )
+            )
             router.routes.clear()
+
             for module_name in (
-                'app.handlers.auth',
-                'app.handlers.exercises',
-                'app.handlers.favorites',
-                'app.handlers.sessions',
+                "app.handlers.auth",
+                "app.handlers.exercises",
+                "app.handlers.favorites",
+                "app.handlers.program",
+                "app.handlers.sessions",
             ):
                 if module_name in sys.modules:
-                    importlib.reload(sys.modules.get(module_name))
+                    importlib.reload(sys.modules[module_name])
+
             register_routes()
-            self.server = ThreadingHTTPServer(('127.0.0.1', 0), HTTPRequestHandler)
+
+            self.server = ThreadingHTTPServer(
+                ("127.0.0.1", 0),
+                HTTPRequestHandler,
+            )
             self.context.callback(self.server.server_close)
-            self.thread = Thread(target=self.server.serve_forever, daemon=True)
+
+            self.thread = Thread(
+                target=self.server.serve_forever,
+                daemon=True,
+            )
             self.thread.start()
+
             self.context.callback(self.thread.join, 3)
             self.context.callback(self.server.shutdown)
+
             self.port = self.server.server_port
-            self.tokens = {role: issue({'sub': '507f1f77bcf86cd799439011', 'email': 'test@example.test', 'role': role}, settings.token_secret, 300) for role in ('USER', 'ADMIN')}
+
+            user_token = issue(
+                {
+                    "sub": "507f1f77bcf86cd799439011",
+                    "email": "user@test.com",
+                    "role": "USER",
+                },
+                settings.token_secret,
+                300,
+            )
+
+            user2_token = issue(
+                {
+                    "sub": "507f1f77bcf86cd799439033",
+                    "email": "user2@test.com",
+                    "role": "USER",
+                },
+                settings.token_secret,
+                300,
+            )
+
+            admin_token = issue(
+                {
+                    "sub": "507f1f77bcf86cd799439022",
+                    "email": "admin@test.com",
+                    "role": "ADMIN",
+                },
+                settings.token_secret,
+                300,
+            )
+
+            self.tokens = {
+                "USER": user_token,
+                "USER2": user2_token,
+                "ADMIN": admin_token,
+            }
+
         except Exception:
             self.context.close()
             raise
 
-    def request(self, method, path, role='ADMIN', payload=NO_BODY):
+    def request(
+        self,
+        method,
+        path,
+        role="ADMIN",
+        payload=NO_BODY,
+    ):
         headers = {}
+
         if role is not None:
-            headers['Authorization'] = 'Bearer ' + self.tokens.get(role)
+            headers["Authorization"] = "Bearer " + self.tokens.get(role)
+
         body = None
+
         if payload is not NO_BODY:
-            body = json.dumps(payload).encode('utf-8')
-            headers['Content-Type'] = 'application/json'
-        connection = HTTPConnection('127.0.0.1', self.port, timeout=5)
+            body = json.dumps(payload).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+
+        connection = HTTPConnection(
+            "127.0.0.1",
+            self.port,
+            timeout=5,
+        )
+
         try:
-            connection.request(method, path, body=body, headers=headers)
+            connection.request(
+                method,
+                path,
+                body=body,
+                headers=headers,
+            )
+
             response = connection.getresponse()
             raw = response.read()
-            return response.status, json.loads(raw) if raw else None, dict(response.getheaders())
+
+            return (
+                response.status,
+                json.loads(raw) if raw else None,
+                dict(response.getheaders()),
+            )
         finally:
             connection.close()
 

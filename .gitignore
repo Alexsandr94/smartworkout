@@ -13,3 +13,8 @@ CLAUDE.md
 .pytest_cache/
 
 .DS_Store
+
+requests.http
+project_all.txt
+seed.py
+collect_files.py

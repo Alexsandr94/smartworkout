@@ -12,11 +12,8 @@ from app.services.auth.service import AuthService
 
 from datetime import UTC, datetime
 
-from bson import ObjectId
 from app.models.user import User
 from app.models.auth import AuthTokens, LoginResult
-from app.security.token import verify
-from app.core.config import settings
 
 
 EMAIL = "student@example.test"
@@ -43,7 +40,6 @@ def service(user_service):
     return AuthService(user_service)
 
 
-from app.models.user import User
 
 
 def test_register_hashes_password_and_delegates_to_user_service(

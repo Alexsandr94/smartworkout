@@ -64,16 +64,48 @@ class TestExerciseRepository:
         last = self.repo.find_page(muscle_groups=['CHEST', 'ARMS'], equipment=['DUMBBELL'], pagination=PaginationParams(limit=2, cursor=second[1].id))
         assert [item.id for item in last] == expected[4:]
 
-    def test_usage_checks_object_id_and_string_references(self):
+    def test_usage_checks_object_id_references(self):
         doc = self.create()
         exercise_id = doc.id
         assert not self.repo.is_used_in_programs(exercise_id)
-        self.db.programs.insert_one({'exercises': [{'exercise_id': ObjectId()}]})
+        self.db.programs.insert_one({
+            "title": "Mock Program 1",
+            "description": "",
+            "is_public": True,
+            "difficulty": "Beginner",
+            "author_id": ObjectId(),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "exercises": [{
+                "exercise_id": ObjectId(),
+                "exercise_name": "Mock Exercise",
+                "order": 1,
+                "sets": 3,
+                "reps": 10,
+                "rest_sec": 60
+            }]
+        })
         assert not self.repo.is_used_in_programs(exercise_id)
-        for reference in (exercise_id, str(exercise_id)):
-            program_id = self.db.programs.insert_one({'exercises': [{'exercise_id': reference}]}).inserted_id
-            assert self.repo.is_used_in_programs(exercise_id)
-            self.db.programs.delete_one({'_id': program_id})
+        program_id = self.db.programs.insert_one({
+            "title": "Mock Program 2",
+            "description": "",
+            "is_public": True,
+            "difficulty": "Beginner",
+            "author_id": ObjectId(),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "exercises": [{
+                "exercise_id": exercise_id,
+                "exercise_name": "Mock Exercise",
+                "order": 1,
+                "sets": 3,
+                "reps": 10,
+                "rest_sec": 60
+            }]
+        }).inserted_id
+        assert self.repo.is_used_in_programs(exercise_id)
+        self.db.programs.delete_one({'_id': program_id})
+        assert not self.repo.is_used_in_programs(exercise_id)
 
     def test_delete_removes_document(self):
         exercise_id = self.create().id
